@@ -1,0 +1,406 @@
+-- Admin Audit System
+-- Track all administrative actions for compliance and security
+
+-- Admin audit log table for administrative actions
+CREATE TABLE admin_audit_log (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    admin_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+    action TEXT NOT NULL,
+    target_type TEXT NOT NULL, -- 'user', 'auctioneer', 'auction', 'invoice', 'payout'
+    target_id UUID NOT NULL,
+    before_values JSONB,
+    after_values JSONB,
+    notes TEXT,
+    ip_address INET,
+    user_agent TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Indexes for admin audit log
+CREATE INDEX idx_admin_audit_log_admin ON admin_audit_log(admin_id);
+CREATE INDEX idx_admin_audit_log_target ON admin_audit_log(target_type, target_id);
+CREATE INDEX idx_admin_audit_log_action ON admin_audit_log(action);
+CREATE INDEX idx_admin_audit_log_created ON admin_audit_log(created_at DESC);
+
+-- System announcements table
+CREATE TABLE system_announcements (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    admin_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    severity TEXT DEFAULT 'info' CHECK (severity IN ('info', 'warning', 'urgent')),
+    target_roles TEXT[] DEFAULT '{"bidder","auctioneer","admin"}',
+    is_active BOOLEAN DEFAULT true NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Indexes for announcements
+CREATE INDEX idx_announcements_active ON system_announcements(is_active, created_at DESC) WHERE is_active = true;
+CREATE INDEX idx_announcements_admin ON system_announcements(admin_id);
+
+-- User compliance flags table
+CREATE TABLE user_compliance_flags (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+    flag_type TEXT NOT NULL, -- 'kyc_required', 'suspicious_activity', 'high_refund_ratio', 'manual_review'
+    severity TEXT DEFAULT 'medium' CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+    description TEXT NOT NULL,
+    flagged_by UUID REFERENCES users(id) ON DELETE SET NULL, -- admin who flagged
+    is_resolved BOOLEAN DEFAULT false NOT NULL,
+    resolved_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    resolved_at TIMESTAMP WITH TIME ZONE,
+    resolution_notes TEXT,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Indexes for compliance flags
+CREATE INDEX idx_compliance_flags_user ON user_compliance_flags(user_id);
+CREATE INDEX idx_compliance_flags_unresolved ON user_compliance_flags(is_resolved, severity, created_at DESC) WHERE is_resolved = false;
+CREATE INDEX idx_compliance_flags_type ON user_compliance_flags(flag_type);
+
+-- User documents table for KYC storage
+CREATE TABLE user_documents (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+    document_type TEXT NOT NULL, -- 'license', 'id_front', 'id_back', 'business_license', 'tax_document'
+    filename TEXT NOT NULL,
+    file_url TEXT NOT NULL,
+    file_size INTEGER,
+    mime_type TEXT,
+    verification_status TEXT DEFAULT 'pending' CHECK (verification_status IN ('pending', 'approved', 'rejected')),
+    verified_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    verified_at TIMESTAMP WITH TIME ZONE,
+    verification_notes TEXT,
+    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Indexes for user documents
+CREATE INDEX idx_user_documents_user ON user_documents(user_id);
+CREATE INDEX idx_user_documents_pending ON user_documents(verification_status, uploaded_at DESC) WHERE verification_status = 'pending';
+
+-- Function to log admin actions
+CREATE OR REPLACE FUNCTION log_admin_action(
+    p_admin_id UUID,
+    p_action TEXT,
+    p_target_type TEXT,
+    p_target_id UUID,
+    p_before_values JSONB DEFAULT NULL,
+    p_after_values JSONB DEFAULT NULL,
+    p_notes TEXT DEFAULT NULL,
+    p_ip_address INET DEFAULT NULL,
+    p_user_agent TEXT DEFAULT NULL
+)
+RETURNS UUID AS $$
+DECLARE
+    log_id UUID;
+BEGIN
+    INSERT INTO admin_audit_log (
+        admin_id,
+        action,
+        target_type,
+        target_id,
+        before_values,
+        after_values,
+        notes,
+        ip_address,
+        user_agent
+    ) VALUES (
+        p_admin_id,
+        p_action,
+        p_target_type,
+        p_target_id,
+        p_before_values,
+        p_after_values,
+        p_notes,
+        p_ip_address,
+        p_user_agent
+    ) RETURNING id INTO log_id;
+
+    RETURN log_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to change user role with audit logging
+CREATE OR REPLACE FUNCTION change_user_role(
+    p_admin_id UUID,
+    p_target_user_id UUID,
+    p_new_role user_role,
+    p_notes TEXT DEFAULT NULL
+)
+RETURNS JSONB AS $$
+DECLARE
+    old_role user_role;
+    user_email TEXT;
+    result JSONB;
+BEGIN
+    -- Get current role
+    SELECT role, email INTO old_role, user_email
+    FROM users WHERE id = p_target_user_id;
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'User not found');
+    END IF;
+
+    IF old_role = p_new_role THEN
+        RETURN jsonb_build_object('success', false, 'error', 'User already has this role');
+    END IF;
+
+    -- Update user role
+    UPDATE users SET role = p_new_role, updated_at = now()
+    WHERE id = p_target_user_id;
+
+    -- Log the action
+    PERFORM log_admin_action(
+        p_admin_id,
+        'role_change',
+        'user',
+        p_target_user_id,
+        jsonb_build_object('role', old_role),
+        jsonb_build_object('role', p_new_role),
+        p_notes
+    );
+
+    result := jsonb_build_object(
+        'success', true,
+        'old_role', old_role,
+        'new_role', p_new_role,
+        'user_email', user_email
+    );
+
+    RETURN result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to suspend/unsuspend user account
+CREATE OR REPLACE FUNCTION change_user_status(
+    p_admin_id UUID,
+    p_target_user_id UUID,
+    p_is_approved BOOLEAN,
+    p_notes TEXT DEFAULT NULL
+)
+RETURNS JSONB AS $$
+DECLARE
+    old_status BOOLEAN;
+    user_email TEXT;
+    action_name TEXT;
+BEGIN
+    -- Get current status
+    SELECT is_approved, email INTO old_status, user_email
+    FROM users WHERE id = p_target_user_id;
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'User not found');
+    END IF;
+
+    IF old_status = p_is_approved THEN
+        RETURN jsonb_build_object('success', false, 'error', 'User status unchanged');
+    END IF;
+
+    -- Update user status
+    UPDATE users SET is_approved = p_is_approved, updated_at = now()
+    WHERE id = p_target_user_id;
+
+    -- Determine action name
+    action_name := CASE WHEN p_is_approved THEN 'user_unsuspended' ELSE 'user_suspended' END;
+
+    -- Log the action
+    PERFORM log_admin_action(
+        p_admin_id,
+        action_name,
+        'user',
+        p_target_user_id,
+        jsonb_build_object('is_approved', old_status),
+        jsonb_build_object('is_approved', p_is_approved),
+        p_notes
+    );
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'old_status', old_status,
+        'new_status', p_is_approved,
+        'user_email', user_email
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to approve/reject auctioneer application
+CREATE OR REPLACE FUNCTION change_auctioneer_status(
+    p_admin_id UUID,
+    p_auctioneer_id UUID,
+    p_is_approved BOOLEAN,
+    p_notes TEXT DEFAULT NULL
+)
+RETURNS JSONB AS $$
+DECLARE
+    old_status BOOLEAN;
+    company_name TEXT;
+    user_id UUID;
+    action_name TEXT;
+BEGIN
+    -- Get current status
+    SELECT is_approved, company_name, user_id INTO old_status, company_name, user_id
+    FROM auctioneers WHERE id = p_auctioneer_id;
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Auctioneer not found');
+    END IF;
+
+    -- Update auctioneer status
+    UPDATE auctioneers SET
+        is_approved = p_is_approved,
+        approval_date = CASE WHEN p_is_approved THEN now() ELSE NULL END,
+        updated_at = now()
+    WHERE id = p_auctioneer_id;
+
+    -- Also update user approval if being approved
+    IF p_is_approved THEN
+        UPDATE users SET is_approved = true WHERE id = user_id;
+    END IF;
+
+    -- Determine action name
+    action_name := CASE WHEN p_is_approved THEN 'auctioneer_approved' ELSE 'auctioneer_rejected' END;
+
+    -- Log the action
+    PERFORM log_admin_action(
+        p_admin_id,
+        action_name,
+        'auctioneer',
+        p_auctioneer_id,
+        jsonb_build_object('is_approved', old_status),
+        jsonb_build_object('is_approved', p_is_approved),
+        p_notes
+    );
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'old_status', old_status,
+        'new_status', p_is_approved,
+        'company_name', company_name
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to get financial summary for admin dashboard
+CREATE OR REPLACE FUNCTION get_financial_summary()
+RETURNS JSONB AS $$
+DECLARE
+    total_credits_minted INTEGER := 0;
+    total_credits_in_escrow INTEGER := 0;
+    total_credits_released INTEGER := 0;
+    total_platform_commission INTEGER := 0;
+    pending_payouts INTEGER := 0;
+    paid_payouts INTEGER := 0;
+    result JSONB;
+BEGIN
+    -- Total credits minted (purchased)
+    SELECT COALESCE(SUM(amount), 0) INTO total_credits_minted
+    FROM wallet_ledger
+    WHERE transaction_type = 'purchase';
+
+    -- Total credits in escrow
+    SELECT COALESCE(SUM(amount), 0) INTO total_credits_in_escrow
+    FROM wallet_ledger wl
+    JOIN invoices i ON wl.reference_id = i.id AND wl.reference_type = 'invoice'
+    WHERE wl.transaction_type = 'escrow_hold' AND i.is_paid = true AND i.is_shipped = false;
+
+    -- Total credits released (completed transactions)
+    SELECT COALESCE(SUM(amount), 0) INTO total_credits_released
+    FROM wallet_ledger
+    WHERE transaction_type = 'escrow_release';
+
+    -- Total platform commission earned
+    SELECT COALESCE(SUM(platform_commission), 0) INTO total_platform_commission
+    FROM payouts_due;
+
+    -- Pending payouts
+    SELECT COALESCE(SUM(amount), 0) INTO pending_payouts
+    FROM payouts_due
+    WHERE is_paid = false;
+
+    -- Paid payouts
+    SELECT COALESCE(SUM(amount), 0) INTO paid_payouts
+    FROM payouts_due
+    WHERE is_paid = true;
+
+    result := jsonb_build_object(
+        'credits_minted', total_credits_minted,
+        'credits_in_escrow', total_credits_in_escrow,
+        'credits_released', total_credits_released,
+        'platform_commission', total_platform_commission,
+        'pending_payouts', pending_payouts,
+        'paid_payouts', paid_payouts,
+        'calculated_at', now()
+    );
+
+    RETURN result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to detect suspicious activity
+CREATE OR REPLACE FUNCTION detect_suspicious_users()
+RETURNS TABLE (
+    user_id UUID,
+    email TEXT,
+    risk_score INTEGER,
+    flags TEXT[]
+) AS $$
+BEGIN
+    RETURN QUERY
+    WITH user_stats AS (
+        SELECT
+            u.id,
+            u.email,
+            COUNT(DISTINCT b.id) as total_bids,
+            COUNT(DISTINCT CASE WHEN b.is_winning THEN b.id END) as winning_bids,
+            COUNT(DISTINCT wl.id) FILTER (WHERE wl.transaction_type = 'bid_refund') as refunds,
+            COUNT(DISTINCT i.id) as invoices_count,
+            COUNT(DISTINCT i.id) FILTER (WHERE i.is_paid = false) as unpaid_invoices
+        FROM users u
+        LEFT JOIN bids b ON u.id = b.bidder_id
+        LEFT JOIN wallet_ledger wl ON u.id = wl.user_id
+        LEFT JOIN invoices i ON u.id = i.buyer_id
+        WHERE u.role = 'bidder'
+        GROUP BY u.id, u.email
+    ),
+    risk_analysis AS (
+        SELECT
+            id,
+            email,
+            CASE
+                WHEN total_bids > 0 AND (refunds::float / total_bids) > 0.8 THEN 30
+                WHEN unpaid_invoices > 2 THEN 25
+                WHEN total_bids > 50 AND winning_bids = 0 THEN 20
+                ELSE 0
+            END as risk_score,
+            ARRAY_REMOVE(ARRAY[
+                CASE WHEN total_bids > 0 AND (refunds::float / total_bids) > 0.8 THEN 'high_refund_ratio' END,
+                CASE WHEN unpaid_invoices > 2 THEN 'multiple_unpaid_invoices' END,
+                CASE WHEN total_bids > 50 AND winning_bids = 0 THEN 'excessive_bidding_no_wins' END
+            ], NULL) as flags
+        FROM user_stats
+    )
+    SELECT ra.id, ra.email, ra.risk_score, ra.flags
+    FROM risk_analysis ra
+    WHERE ra.risk_score > 0
+    ORDER BY ra.risk_score DESC;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant permissions to authenticated users for the functions
+GRANT EXECUTE ON FUNCTION log_admin_action TO authenticated;
+GRANT EXECUTE ON FUNCTION change_user_role TO authenticated;
+GRANT EXECUTE ON FUNCTION change_user_status TO authenticated;
+GRANT EXECUTE ON FUNCTION change_auctioneer_status TO authenticated;
+GRANT EXECUTE ON FUNCTION get_financial_summary TO authenticated;
+GRANT EXECUTE ON FUNCTION detect_suspicious_users TO authenticated;
+
+-- Add triggers for updated_at
+CREATE TRIGGER update_announcements_updated_at BEFORE UPDATE ON system_announcements
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_compliance_flags_updated_at BEFORE UPDATE ON user_compliance_flags
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
