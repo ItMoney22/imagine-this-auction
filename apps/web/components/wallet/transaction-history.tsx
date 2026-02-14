@@ -21,7 +21,7 @@ interface TransactionHistoryProps {
 
 const TRANSACTION_ICONS = {
   purchase: CreditCard,
-  bid_spend: Gavel,
+  bid_hold: Gavel,
   bid_refund: RefreshCw,
   escrow_hold: Lock,
   escrow_release: Unlock,
@@ -29,7 +29,7 @@ const TRANSACTION_ICONS = {
 
 const TRANSACTION_COLORS = {
   purchase: 'text-green-600 bg-green-50 border-green-200',
-  bid_spend: 'text-red-600 bg-red-50 border-red-200',
+  bid_hold: 'text-red-600 bg-red-50 border-red-200',
   bid_refund: 'text-blue-600 bg-blue-50 border-blue-200',
   escrow_hold: 'text-yellow-600 bg-yellow-50 border-yellow-200',
   escrow_release: 'text-green-600 bg-green-50 border-green-200',
@@ -52,7 +52,7 @@ export function TransactionHistory({ transactions }: TransactionHistoryProps) {
   const getTransactionBadge = (type: WalletTransaction['type']) => {
     const labels = {
       purchase: 'Purchase',
-      bid_spend: 'Bid Placed',
+      bid_hold: 'Bid Placed',
       bid_refund: 'Bid Refund',
       escrow_hold: 'Escrow Hold',
       escrow_release: 'Escrow Release',
@@ -60,7 +60,7 @@ export function TransactionHistory({ transactions }: TransactionHistoryProps) {
 
     const colors = {
       purchase: 'default',
-      bid_spend: 'destructive',
+      bid_hold: 'destructive',
       bid_refund: 'secondary',
       escrow_hold: 'outline',
       escrow_release: 'default',

@@ -26,7 +26,17 @@ export function LotDetail({ lot, auction }: LotDetailProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [imageError, setImageError] = useState<Set<number>>(new Set())
 
-  const images = lot.images || []
+  // Parse images - handle both JSON string and array formats
+  let images: string[] = []
+  try {
+    if (typeof lot.images === 'string') {
+      images = JSON.parse(lot.images)
+    } else if (Array.isArray(lot.images)) {
+      images = lot.images
+    }
+  } catch {
+    images = []
+  }
   const hasImages = images.length > 0
 
   const nextImage = () => {
@@ -81,9 +91,9 @@ export function LotDetail({ lot, auction }: LotDetailProps) {
             </div>
 
             {/* Reserve indicator */}
-            {lot.reserve_price_itc && (
+            {lot.reserve_price && (
               <Badge variant="destructive" className="self-start">
-                Reserve: {formatCurrency(lot.reserve_price_itc)}
+                Reserve: {formatCurrency(lot.reserve_price)}
               </Badge>
             )}
           </div>
@@ -196,7 +206,7 @@ export function LotDetail({ lot, auction }: LotDetailProps) {
                 <DollarSign className="h-5 w-5 text-gray-400 mr-3" />
                 <div>
                   <div className="text-sm text-gray-600">Starting Price</div>
-                  <div className="font-medium">{formatCurrency(lot.start_price_itc)}</div>
+                  <div className="font-medium">{formatCurrency(lot.starting_bid)}</div>
                 </div>
               </div>
 
@@ -204,17 +214,17 @@ export function LotDetail({ lot, auction }: LotDetailProps) {
                 <TrendingUp className="h-5 w-5 text-gray-400 mr-3" />
                 <div>
                   <div className="text-sm text-gray-600">Bid Increment</div>
-                  <div className="font-medium">{formatCurrency(lot.bid_increment_itc)}</div>
+                  <div className="font-medium">{formatCurrency(lot.increment)}</div>
                 </div>
               </div>
 
-              {lot.reserve_price_itc && (
+              {lot.reserve_price && (
                 <div className="flex items-center">
                   <Package className="h-5 w-5 text-gray-400 mr-3" />
                   <div>
                     <div className="text-sm text-gray-600">Reserve Price</div>
                     <div className="font-medium text-red-600">
-                      {formatCurrency(lot.reserve_price_itc)}
+                      {formatCurrency(lot.reserve_price)}
                     </div>
                   </div>
                 </div>
@@ -258,16 +268,7 @@ export function LotDetail({ lot, auction }: LotDetailProps) {
               <div>
                 <div className="text-sm text-gray-600">Auctioneer</div>
                 <div className="font-medium">
-                  {auction.auctioneers?.slug ? (
-                    <Link
-                      href={`/auctioneers/${auction.auctioneers.slug}`}
-                      className="text-blue-600 hover:text-blue-800"
-                    >
-                      {auction.auctioneers.organization_name}
-                    </Link>
-                  ) : (
-                    auction.auctioneers?.organization_name
-                  )}
+                  {auction.auctioneers?.company_name || 'Community Auction House'}
                 </div>
               </div>
             </div>

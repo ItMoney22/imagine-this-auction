@@ -174,7 +174,7 @@ export function AuctionInfo({ auction, lotCount, categories }: AuctionInfoProps)
         <CardContent>
           <div className="space-y-2">
             <h4 className="font-medium text-gray-900">
-              {auction.auctioneers?.organization_name}
+              {auction.auctioneers?.company_name}
             </h4>
 
             <div className="flex items-center">

@@ -96,11 +96,11 @@ export function AuctionHeader({ auction }: AuctionHeaderProps) {
                   href={`/auctioneers/${auction.auctioneers.slug}`}
                   className="font-medium text-blue-600 hover:text-blue-800"
                 >
-                  {auction.auctioneers.organization_name}
+                  {auction.auctioneers.company_name}
                 </Link>
               ) : (
                 <span className="font-medium">
-                  {auction.auctioneers?.organization_name}
+                  {auction.auctioneers?.company_name}
                 </span>
               )}
             </span>

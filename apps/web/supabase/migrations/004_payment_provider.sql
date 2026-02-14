@@ -28,6 +28,9 @@ CREATE POLICY "Admin access to payment events" ON payment_events
 CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_events_provider_event_id
     ON payment_events(provider_event_id);
 
+-- Drop old function to allow parameter rename
+DROP FUNCTION IF EXISTS add_wallet_credits(UUID, INTEGER, TEXT, TEXT);
+
 CREATE OR REPLACE FUNCTION add_wallet_credits(
     user_uuid UUID,
     credit_amount INTEGER,

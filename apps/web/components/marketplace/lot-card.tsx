@@ -17,10 +17,10 @@ interface LotCardProps {
 export function LotCard({ lot, auction, onImageError, hasImageError }: LotCardProps) {
   const getCurrentHighBid = () => {
     if (!lot.bids || lot.bids.length === 0) {
-      return lot.start_price_itc
+      return lot.starting_bid
     }
 
-    return Math.max(...lot.bids.map((bid: any) => bid.amount_itc))
+    return Math.max(...lot.bids.map((bid: any) => bid.amount))
   }
 
   const getBidCount = () => {
@@ -28,12 +28,12 @@ export function LotCard({ lot, auction, onImageError, hasImageError }: LotCardPr
   }
 
   const getNextBidAmount = () => {
-    return getCurrentHighBid() + lot.bid_increment_itc
+    return getCurrentHighBid() + lot.increment
   }
 
   const isReserveMet = () => {
-    if (!lot.reserve_price_itc) return true
-    return getCurrentHighBid() >= lot.reserve_price_itc
+    if (!lot.reserve_price) return true
+    return getCurrentHighBid() >= lot.reserve_price
   }
 
   const isLive = () => {
@@ -63,7 +63,7 @@ export function LotCard({ lot, auction, onImageError, hasImageError }: LotCardPr
           </div>
 
           {/* Reserve indicator */}
-          {lot.reserve_price_itc && (
+          {lot.reserve_price && (
             <Badge variant={isReserveMet() ? "default" : "destructive"} className="text-xs">
               {isReserveMet() ? "Reserve Met" : "Reserve"}
             </Badge>
@@ -123,11 +123,11 @@ export function LotCard({ lot, auction, onImageError, hasImageError }: LotCardPr
             </div>
           )}
 
-          {lot.reserve_price_itc && !isReserveMet() && (
+          {lot.reserve_price && !isReserveMet() && (
             <div className="flex justify-between items-center">
               <span className="text-sm text-red-600">Reserve:</span>
               <span className="font-medium text-red-600">
-                {formatCurrency(lot.reserve_price_itc)}
+                {formatCurrency(lot.reserve_price)}
               </span>
             </div>
           )}
@@ -136,7 +136,7 @@ export function LotCard({ lot, auction, onImageError, hasImageError }: LotCardPr
         {/* Bidding stats */}
         <div className="flex justify-between items-center text-sm text-gray-600">
           <span>{getBidCount()} bid{getBidCount() !== 1 ? 's' : ''}</span>
-          <span>Increment: {formatCurrency(lot.bid_increment_itc)}</span>
+          <span>Increment: {formatCurrency(lot.increment)}</span>
         </div>
 
         {/* Actions */}

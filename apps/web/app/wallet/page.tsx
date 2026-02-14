@@ -5,33 +5,23 @@ import { WalletDashboard } from '@/components/wallet/wallet-dashboard'
 export default async function WalletPage() {
   const supabase = await createClient()
 
-  // TEMPORARY: Skip auth for development
-  // const {
-  //   data: { user },
-  // } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  // if (!user) {
-  //   redirect('/login?redirect=/wallet')
-  // }
+  if (!user) {
+    redirect('/login?redirect=/wallet')
+  }
 
   // Get user profile
-  // const { data: userProfile } = await supabase
-  //   .from('users')
-  //   .select('*')
-  //   .eq('id', user.id)
-  //   .single()
+  const { data: userProfile } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', user.id)
+    .single()
 
-  // if (!userProfile) {
-  //   redirect('/login')
-  // }
-
-  // TEMPORARY: Use dummy user profile for development
-  const userProfile = {
-    id: 'dummy-user-id',
-    email: 'test@example.com',
-    first_name: 'Test',
-    last_name: 'User',
-    role: 'bidder'
+  if (!userProfile) {
+    redirect('/login')
   }
 
   return (

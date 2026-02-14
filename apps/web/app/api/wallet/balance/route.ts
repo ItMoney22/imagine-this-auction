@@ -1,53 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { WalletBalance, WalletTransaction } from '@/lib/payments/types'
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
 
-    // TEMPORARY: Skip auth for development
-    // const {
-    //   data: { user },
-    //   error: authError,
-    // } = await supabase.auth.getUser()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
 
-    // if (authError || !user) {
-    //   return NextResponse.json(
-    //     { error: 'Authentication required' },
-    //     { status: 401 }
-    //   )
-    // }
-
-    // TEMPORARY: Use dummy transactions for development
-    const transactions = [
-      {
-        id: 'tx1',
-        type: 'purchase',
-        amount_itc: 1000,
-        created_at: new Date().toISOString(),
-        ref_table: 'payment_events',
-        ref_id: 'dummy-session',
-        description: 'Initial credit purchase'
-      },
-      {
-        id: 'tx2',
-        type: 'bid_spend',
-        amount_itc: 50,
-        created_at: new Date(Date.now() - 86400000).toISOString(),
-        ref_table: 'bids',
-        ref_id: 'dummy-bid',
-        description: 'Bid on vintage watch'
-      }
-    ]
-    const transactionsError = null
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
 
     // Get all wallet transactions for the user
-    // const { data: transactions, error: transactionsError } = await supabase
-    //   .from('wallet_ledger')
-    //   .select('*')
-    //   .eq('user_id', user.id)
-    //   .order('created_at', { ascending: false })
+    const { data: transactions, error: transactionsError } = await supabase
+      .from('wallet_ledger')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
 
     if (transactionsError) {
       console.error('Failed to fetch wallet transactions:', transactionsError)
@@ -57,58 +32,57 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Calculate balance
+    // Calculate balance using correct column names
     let balance = 0
-    const processedTransactions: WalletTransaction[] = []
+    const processedTransactions = []
 
     for (const transaction of transactions || []) {
       let description = transaction.description || ''
 
-      switch (transaction.type) {
+      switch (transaction.transaction_type) {
         case 'purchase':
         case 'bid_refund':
         case 'escrow_release':
-          balance += transaction.amount_itc
+          balance += transaction.amount
           if (!description) {
-            description = transaction.type === 'purchase'
+            description = transaction.transaction_type === 'purchase'
               ? 'Credit purchase'
-              : transaction.type === 'bid_refund'
+              : transaction.transaction_type === 'bid_refund'
               ? 'Bid refund'
               : 'Escrow release'
           }
           break
 
-        case 'bid_spend':
+        case 'bid_hold':
         case 'escrow_hold':
-          balance -= transaction.amount_itc
+          balance -= transaction.amount
           if (!description) {
-            description = transaction.type === 'bid_spend'
+            description = transaction.transaction_type === 'bid_hold'
               ? 'Bid placed'
               : 'Escrow hold'
           }
           break
 
         default:
-          console.warn(`Unknown wallet transaction type: ${transaction.type}`)
+          console.warn(`Unknown wallet transaction type: ${transaction.transaction_type}`)
       }
 
       processedTransactions.push({
         id: transaction.id,
-        type: transaction.type,
-        amount_itc: transaction.amount_itc,
+        type: transaction.transaction_type,
+        amount_itc: transaction.amount,
+        balance_after: transaction.balance_after,
         created_at: transaction.created_at,
-        ref_table: transaction.ref_table,
-        ref_id: transaction.ref_id,
+        ref_id: transaction.reference_id,
+        ref_table: transaction.reference_type,
         description,
       })
     }
 
-    const walletBalance: WalletBalance = {
+    return NextResponse.json({
       balance,
       transactions: processedTransactions,
-    }
-
-    return NextResponse.json(walletBalance)
+    })
 
   } catch (error) {
     console.error('Wallet balance API error:', error)

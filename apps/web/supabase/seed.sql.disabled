@@ -1,0 +1,64 @@
+-- ImagineThisAuction - Community Auction Seed Data
+-- Creates a welcoming auction with accessible, friendly lots
+
+-- Create test user (auctioneer)
+INSERT INTO users (id, email, role, first_name, last_name, is_approved)
+VALUES ('00000000-0000-0000-0000-000000000001', 'test@test.com', 'auctioneer', 'Test', 'Auctioneer', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Create auctioneer profile
+INSERT INTO auctioneers (id, user_id, company_name, address_line1, city, state, zip_code, is_approved, approval_date)
+VALUES ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Community Auction House', '123 Main St', 'Atlanta', 'GA', '30301', true, now())
+ON CONFLICT (id) DO NOTHING;
+
+-- Create live community auction
+INSERT INTO auctions (id, auctioneer_id, title, description, status, starts_at, ends_at, buyer_premium_percent, anti_sniping_seconds)
+VALUES (
+    '00000000-0000-0000-0000-000000000003',
+    '00000000-0000-0000-0000-000000000002',
+    'Community Estate Sale',
+    'A wonderful collection of household treasures, vintage finds, and collectibles from a local family. Something for everyone!',
+    'live',
+    now() - interval '1 hour',
+    now() + interval '24 hours',
+    10.00,
+    60
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- Create welcoming, accessible lots
+INSERT INTO lots (auction_id, lot_number, title, description, starting_bid, increment, estimate_low, estimate_high, category, images) VALUES
+('00000000-0000-0000-0000-000000000003', 1, 'Canon AE-1 Program 35mm Film Camera',
+ 'Classic 1980s SLR camera in excellent working condition. Includes original 50mm f/1.8 lens, leather case, and instruction manual. Perfect for photography enthusiasts or collectors!',
+ 7500, 500, 10000, 15000, 'Electronics', '["camera-vintage.webp"]'),
+
+('00000000-0000-0000-0000-000000000003', 2, 'Classic Rock & Jazz Vinyl Collection (25 LPs)',
+ 'Carefully curated collection of 25 vinyl records including Beatles, Led Zeppelin, Miles Davis, and more. All in VG+ to NM condition.',
+ 12000, 1000, 20000, 30000, 'Music', '["vinyl-records.webp"]'),
+
+('00000000-0000-0000-0000-000000000003', 3, 'Handcrafted Oak Rocking Chair, c.1920',
+ 'Beautiful antique rocking chair with original finish. Solid oak construction with elegant curved arms. A true heirloom piece!',
+ 15000, 1000, 25000, 40000, 'Furniture', '["rocking-chair.webp"]'),
+
+('00000000-0000-0000-0000-000000000003', 4, 'Vintage Baseball Memorabilia Lot',
+ 'Collection includes 1950s Topps baseball cards, vintage leather glove, and signed baseball. Great for sports fans!',
+ 5000, 500, 8000, 15000, 'Sports', '["sports-memorabilia.webp"]'),
+
+('00000000-0000-0000-0000-000000000003', 5, '1960s Tin Toy Robot & Vintage Games',
+ 'Nostalgic collection of classic toys including battery-operated tin robot and vintage board games. Bring back childhood memories!',
+ 8000, 500, 12000, 20000, 'Toys', '["vintage-toys.webp"]'),
+
+('00000000-0000-0000-0000-000000000003', 6, 'Artisan Ceramic Bowl & Vase Collection',
+ 'Set of 5 hand-thrown pottery pieces by local artist. Beautiful earth-toned glazes, each piece unique. Perfect for home decor!',
+ 6000, 500, 10000, 18000, 'Art', '["pottery-handmade.webp"]')
+ON CONFLICT (auction_id, lot_number) DO NOTHING;
+
+-- Add a test bidder with some credits
+INSERT INTO users (id, email, role, first_name, last_name, is_approved)
+VALUES ('00000000-0000-0000-0000-000000000010', 'bidder@test.com', 'bidder', 'Test', 'Bidder', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Give the test bidder some ITC credits
+INSERT INTO wallet_ledger (user_id, transaction_type, amount, balance_after, description)
+VALUES ('00000000-0000-0000-0000-000000000010', 'purchase', 50000, 50000, 'Welcome bonus - 500 ITC credits')
+ON CONFLICT DO NOTHING;

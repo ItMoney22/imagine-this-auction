@@ -5,12 +5,13 @@ import { BiddingPanel } from '@/components/marketplace/bidding-panel'
 import { BidHistory } from '@/components/marketplace/bid-history'
 
 interface Props {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export default async function LotDetailPage({ params }: Props) {
+  const { id } = await params
   const supabase = await createClient()
 
   // Get lot with auction and auctioneer info
@@ -21,83 +22,43 @@ export default async function LotDetailPage({ params }: Props) {
       auctions (
         *,
         auctioneers (
-          organization_name,
-          slug,
-          approved
+          company_name,
+          is_approved
         )
       )
     `)
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (!lot) return notFound()
 
   const auction = lot.auctions
 
-  // TEMPORARY: Skip auth checks for development - allow all lots to be viewed
-  // Check if lot is accessible
-  // const {
-  //   data: { user },
-  // } = await supabase.auth.getUser()
+  // Get current user for authentication
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  // let canView = auction.status === 'live' && auction.auctioneers?.approved
+  // All live auctions are viewable
+  const canView = auction.status === 'live' || auction.status === 'scheduled'
 
-  // Allow owners to view their own lots
-  // if (user) {
-  //   const { data: auctioneer } = await supabase
-  //     .from('auctioneers')
-  //     .select('id')
-  //     .eq('user_id', user.id)
-  //     .single()
-
-  //   if (auctioneer && auction.auctioneer_id === auctioneer.id) {
-  //     canView = true
-  //   }
-
-  //   // Allow admins to view all lots
-  //   const { data: userProfile } = await supabase
-  //     .from('users')
-  //     .select('role')
-  //     .eq('id', user.id)
-  //     .single()
-
-  //   if (userProfile?.role === 'admin') {
-  //     canView = true
-  //   }
-  // }
-
-  // if (!canView) return notFound()
-
-  // TEMPORARY: Allow viewing all lots for development
-  const canView = true
-
-  // TEMPORARY: Skip user profile query for development
   // Get current user profile for bidding
-  // let userProfile = null
-  // if (user) {
-  //   const { data } = await supabase
-  //     .from('users')
-  //     .select('*')
-  //     .eq('id', user.id)
-  //     .single()
-  //   userProfile = data
-  // }
-
-  // TEMPORARY: Use dummy user profile for development
-  const userProfile = {
-    id: 'dummy-user-id',
-    email: 'test@example.com',
-    first_name: 'Test',
-    last_name: 'User',
-    role: 'bidder'
+  let userProfile = null
+  if (user) {
+    const { data } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+    userProfile = data
   }
 
-  // Get bid history
+  // Get bid history (bids table has bidder_id -> users.id foreign key)
   const { data: bids } = await supabase
     .from('bids')
     .select(`
       *,
-      users (
+      users:bidder_id (
         first_name,
         last_name,
         email
@@ -106,34 +67,30 @@ export default async function LotDetailPage({ params }: Props) {
     .eq('lot_id', lot.id)
     .order('created_at', { ascending: false })
 
-  // TEMPORARY: Skip wallet balance query for development
   // Get user's wallet balance if logged in
-  // let walletBalance = 0
-  // if (user) {
-  //   const { data: walletData } = await supabase
-  //     .from('wallet_ledger')
-  //     .select('amount_itc, type')
-  //     .eq('user_id', user.id)
+  let walletBalance = 0
+  if (user) {
+    const { data: walletData } = await supabase
+      .from('wallet_ledger')
+      .select('amount, transaction_type')
+      .eq('user_id', user.id)
 
-  //   if (walletData) {
-  //     walletBalance = walletData.reduce((balance, transaction) => {
-  //       switch (transaction.type) {
-  //         case 'purchase':
-  //         case 'bid_refund':
-  //         case 'escrow_release':
-  //           return balance + transaction.amount_itc
-  //         case 'bid_spend':
-  //         case 'escrow_hold':
-  //           return balance - transaction.amount_itc
-  //         default:
-  //           return balance
-  //       }
-  //     }, 0)
-  //   }
-  // }
-
-  // TEMPORARY: Use dummy wallet balance for development
-  const walletBalance = 1000
+    if (walletData) {
+      walletBalance = walletData.reduce((balance, transaction) => {
+        switch (transaction.transaction_type) {
+          case 'purchase':
+          case 'bid_refund':
+          case 'escrow_release':
+            return balance + transaction.amount
+          case 'bid_hold':
+          case 'escrow_hold':
+            return balance - transaction.amount
+          default:
+            return balance
+        }
+      }, 0)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

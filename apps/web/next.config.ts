@@ -10,6 +10,15 @@ const nextConfig: NextConfig = {
     // Also ignore TypeScript errors for demo
     ignoreBuildErrors: true,
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'replicate.delivery',
+        pathname: '/**',
+      },
+    ],
+  },
 }
 
 export default nextConfig;

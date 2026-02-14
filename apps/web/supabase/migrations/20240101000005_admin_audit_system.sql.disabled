@@ -2,8 +2,8 @@
 -- Track all administrative actions for compliance and security
 
 -- Admin audit log table for administrative actions
-CREATE TABLE admin_audit_log (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS admin_audit_log (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     admin_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
     action TEXT NOT NULL,
     target_type TEXT NOT NULL, -- 'user', 'auctioneer', 'auction', 'invoice', 'payout'
@@ -17,14 +17,14 @@ CREATE TABLE admin_audit_log (
 );
 
 -- Indexes for admin audit log
-CREATE INDEX idx_admin_audit_log_admin ON admin_audit_log(admin_id);
-CREATE INDEX idx_admin_audit_log_target ON admin_audit_log(target_type, target_id);
-CREATE INDEX idx_admin_audit_log_action ON admin_audit_log(action);
-CREATE INDEX idx_admin_audit_log_created ON admin_audit_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_log_admin ON admin_audit_log(admin_id);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_log_target ON admin_audit_log(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_log_action ON admin_audit_log(action);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_log_created ON admin_audit_log(created_at DESC);
 
 -- System announcements table
-CREATE TABLE system_announcements (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS system_announcements (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     admin_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
     title TEXT NOT NULL,
     message TEXT NOT NULL,
@@ -37,12 +37,12 @@ CREATE TABLE system_announcements (
 );
 
 -- Indexes for announcements
-CREATE INDEX idx_announcements_active ON system_announcements(is_active, created_at DESC) WHERE is_active = true;
-CREATE INDEX idx_announcements_admin ON system_announcements(admin_id);
+CREATE INDEX IF NOT EXISTS idx_announcements_active ON system_announcements(is_active, created_at DESC) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_announcements_admin ON system_announcements(admin_id);
 
 -- User compliance flags table
-CREATE TABLE user_compliance_flags (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS user_compliance_flags (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
     flag_type TEXT NOT NULL, -- 'kyc_required', 'suspicious_activity', 'high_refund_ratio', 'manual_review'
     severity TEXT DEFAULT 'medium' CHECK (severity IN ('low', 'medium', 'high', 'critical')),
@@ -58,13 +58,13 @@ CREATE TABLE user_compliance_flags (
 );
 
 -- Indexes for compliance flags
-CREATE INDEX idx_compliance_flags_user ON user_compliance_flags(user_id);
-CREATE INDEX idx_compliance_flags_unresolved ON user_compliance_flags(is_resolved, severity, created_at DESC) WHERE is_resolved = false;
-CREATE INDEX idx_compliance_flags_type ON user_compliance_flags(flag_type);
+CREATE INDEX IF NOT EXISTS idx_compliance_flags_user ON user_compliance_flags(user_id);
+CREATE INDEX IF NOT EXISTS idx_compliance_flags_unresolved ON user_compliance_flags(is_resolved, severity, created_at DESC) WHERE is_resolved = false;
+CREATE INDEX IF NOT EXISTS idx_compliance_flags_type ON user_compliance_flags(flag_type);
 
 -- User documents table for KYC storage
-CREATE TABLE user_documents (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS user_documents (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
     document_type TEXT NOT NULL, -- 'license', 'id_front', 'id_back', 'business_license', 'tax_document'
     filename TEXT NOT NULL,
@@ -79,8 +79,8 @@ CREATE TABLE user_documents (
 );
 
 -- Indexes for user documents
-CREATE INDEX idx_user_documents_user ON user_documents(user_id);
-CREATE INDEX idx_user_documents_pending ON user_documents(verification_status, uploaded_at DESC) WHERE verification_status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_user_documents_user ON user_documents(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_documents_pending ON user_documents(verification_status, uploaded_at DESC) WHERE verification_status = 'pending';
 
 -- Function to log admin actions
 CREATE OR REPLACE FUNCTION log_admin_action(

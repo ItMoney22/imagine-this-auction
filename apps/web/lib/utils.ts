@@ -5,8 +5,37 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatCurrency(amount: number, currency = 'ITC') {
-  return `${amount.toLocaleString()} ${currency}`
+// Format amount in cents to display as dollars with ITC equivalent
+// 100 ITC = $1.00
+export function formatCurrency(amountInCents: number | undefined | null, showITC = true) {
+  if (amountInCents == null || amountInCents === 0) {
+    return showITC ? '$0.00 (0 ITC)' : '$0.00'
+  }
+  const dollars = (amountInCents / 100).toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2
+  })
+  if (showITC) {
+    return `${dollars} (${amountInCents.toLocaleString()} ITC)`
+  }
+  return dollars
+}
+
+// Format just the dollar amount without ITC
+export function formatDollars(amountInCents: number | undefined | null) {
+  if (amountInCents == null || amountInCents === 0) return '$0.00'
+  return (amountInCents / 100).toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2
+  })
+}
+
+// Format just ITC amount
+export function formatITC(amount: number | undefined | null) {
+  if (amount == null) return '0 ITC'
+  return `${amount.toLocaleString()} ITC`
 }
 
 export function formatDate(date: string | Date) {

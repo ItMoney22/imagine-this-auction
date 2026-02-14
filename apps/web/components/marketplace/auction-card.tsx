@@ -65,7 +65,7 @@ export function AuctionCard({ auction }: AuctionCardProps) {
             </h3>
             <div className="flex items-center text-sm text-gray-600 mt-1">
               <MapPin className="h-3 w-3 mr-1" />
-              {auction.auctioneers?.organization_name}
+              {auction.auctioneers?.company_name}
             </div>
           </div>
           {getStatusBadge()}

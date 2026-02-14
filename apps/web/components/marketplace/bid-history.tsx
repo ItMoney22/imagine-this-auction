@@ -39,7 +39,7 @@ export function BidHistory({ lot, bids: initialBids, currentUser }: BidHistoryPr
           const { data: bidUser } = await supabase
             .from('users')
             .select('first_name, last_name, email')
-            .eq('id', newBid.user_id)
+            .eq('id', newBid.bidder_id)
             .single()
 
           const bidWithUser = {
@@ -86,7 +86,7 @@ export function BidHistory({ lot, bids: initialBids, currentUser }: BidHistoryPr
   }
 
   const isCurrentUserBid = (bid: any) => {
-    return currentUser && bid.user_id === currentUser.id
+    return currentUser && bid.bidder_id === currentUser.id
   }
 
   const visibleBids = bids.slice(0, visibleCount)
@@ -172,7 +172,7 @@ export function BidHistory({ lot, bids: initialBids, currentUser }: BidHistoryPr
                             : 'text-gray-700'
                         }`}
                       >
-                        {formatCurrency(bid.amount_itc)}
+                        {formatCurrency(bid.amount)}
                       </div>
                       <div className="text-xs text-gray-500">
                         {timeAgo}
@@ -199,13 +199,13 @@ export function BidHistory({ lot, bids: initialBids, currentUser }: BidHistoryPr
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Starting Price:</span>
                   <span className="font-medium">
-                    {formatCurrency(lot.start_price_itc)}
+                    {formatCurrency(lot.starting_bid)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Bid Increment:</span>
                   <span className="font-medium">
-                    {formatCurrency(lot.bid_increment_itc)}
+                    {formatCurrency(lot.increment)}
                   </span>
                 </div>
               </div>
@@ -216,7 +216,7 @@ export function BidHistory({ lot, bids: initialBids, currentUser }: BidHistoryPr
                   <div className="flex items-center space-x-1">
                     <TrendingUp className="h-3 w-3 text-green-600" />
                     <span className="font-medium text-green-600">
-                      +{formatCurrency(bids[0].amount_itc - lot.start_price_itc)}
+                      +{formatCurrency(bids[0].amount - lot.starting_bid)}
                     </span>
                   </div>
                 </div>
@@ -235,7 +235,7 @@ export function BidHistory({ lot, bids: initialBids, currentUser }: BidHistoryPr
             </p>
             <div className="mt-4 p-3 bg-blue-50 rounded-lg">
               <div className="text-sm text-blue-800">
-                Starting at {formatCurrency(lot.start_price_itc)}
+                Starting at {formatCurrency(lot.starting_bid)}
               </div>
             </div>
           </div>

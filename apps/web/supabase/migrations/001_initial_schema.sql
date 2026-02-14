@@ -2,7 +2,7 @@
 -- Task B: Schema & Migrations
 
 -- Enable necessary extensions
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- Using gen_random_uuid() which is native to PostgreSQL 13+
 
 -- Create enums
 CREATE TYPE user_role AS ENUM ('bidder', 'auctioneer', 'admin');
@@ -25,7 +25,7 @@ CREATE TABLE users (
 
 -- Auctioneers table - company/business information
 CREATE TABLE auctioneers (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
     company_name TEXT NOT NULL,
     business_license TEXT,
@@ -45,7 +45,7 @@ CREATE TABLE auctioneers (
 
 -- Auctions table - auction events
 CREATE TABLE auctions (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     auctioneer_id UUID REFERENCES auctioneers(id) ON DELETE CASCADE NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
@@ -69,7 +69,7 @@ CREATE TABLE auctions (
 
 -- Lots table - individual auction items
 CREATE TABLE lots (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     auction_id UUID REFERENCES auctions(id) ON DELETE CASCADE NOT NULL,
     lot_number INTEGER NOT NULL,
     title TEXT NOT NULL,
@@ -101,7 +101,7 @@ CREATE TABLE lots (
 
 -- Bids table - bidding history
 CREATE TABLE bids (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     lot_id UUID REFERENCES lots(id) ON DELETE CASCADE NOT NULL,
     bidder_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
     amount INTEGER NOT NULL, -- in cents
@@ -116,7 +116,7 @@ CREATE TABLE bids (
 
 -- Wallet ledger - all ITC credit transactions
 CREATE TABLE wallet_ledger (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
     transaction_type transaction_type NOT NULL,
     amount INTEGER NOT NULL, -- in ITC (cents), positive = credit, negative = debit
@@ -130,13 +130,15 @@ CREATE TABLE wallet_ledger (
 
 -- Invoices - winner invoices with buyer's premium
 CREATE TABLE invoices (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     lot_id UUID REFERENCES lots(id) ON DELETE CASCADE NOT NULL,
     buyer_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
     hammer_price INTEGER NOT NULL, -- in cents
     buyer_premium_percent DECIMAL(5,2) NOT NULL,
     buyer_premium_amount INTEGER NOT NULL, -- calculated buyer's premium in cents
     total_amount INTEGER NOT NULL, -- hammer_price + buyer_premium_amount
+    platform_commission_amount INTEGER DEFAULT 0 NOT NULL, -- platform's cut in cents
+    status TEXT DEFAULT 'pending' NOT NULL, -- pending, escrow_hold, completed, refunded
     is_paid BOOLEAN DEFAULT false NOT NULL,
     paid_at TIMESTAMP WITH TIME ZONE,
     shipping_required BOOLEAN DEFAULT true NOT NULL,
@@ -164,7 +166,7 @@ CREATE TABLE stripe_events (
 
 -- Payouts due - auctioneers' pending payouts
 CREATE TABLE payouts_due (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     auctioneer_id UUID REFERENCES auctioneers(id) ON DELETE CASCADE NOT NULL,
     invoice_id UUID REFERENCES invoices(id) ON DELETE CASCADE NOT NULL,
     amount INTEGER NOT NULL, -- payout amount in cents (after platform commission)
@@ -180,7 +182,7 @@ CREATE TABLE payouts_due (
 
 -- Audit log - system actions and changes
 CREATE TABLE audit_log (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     action TEXT NOT NULL,
     table_name TEXT NOT NULL,

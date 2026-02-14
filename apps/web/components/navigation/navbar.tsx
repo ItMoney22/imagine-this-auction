@@ -104,6 +104,15 @@ export function Navbar({ user }: NavbarProps) {
                   >
                     Profile
                   </Link>
+                  {user.role === 'admin' && (
+                    <Link
+                      href="/admin"
+                      className="block rounded-xl px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-700"
+                      onClick={() => setIsProfileOpen(false)}
+                    >
+                      ⚙️ Admin Panel
+                    </Link>
+                  )}
                   {user.role === 'bidder' && (
                     <Link
                       href="/become-auctioneer"
