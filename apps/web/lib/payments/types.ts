@@ -27,7 +27,7 @@ export type PaymentCloudWebhookEvent = z.infer<typeof PaymentCloudWebhookSchema>
 
 export interface WalletTransaction {
   id: string
-  type: 'purchase' | 'bid_hold' | 'bid_refund' | 'escrow_hold' | 'escrow_release'
+  type: 'purchase' | 'bid_hold' | 'bid_refund' | 'escrow_hold' | 'escrow_release' | 'payout'
   amount_itc: number
   created_at: string
   ref_table?: string | null

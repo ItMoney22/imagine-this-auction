@@ -18,6 +18,7 @@ export interface Database {
           last_name: string | null
           phone: string | null
           is_approved: boolean
+          notification_prefs: Json
           created_at: string
           updated_at: string
         }
@@ -29,6 +30,7 @@ export interface Database {
           last_name?: string | null
           phone?: string | null
           is_approved?: boolean
+          notification_prefs?: Json
           created_at?: string
           updated_at?: string
         }
@@ -40,6 +42,7 @@ export interface Database {
           last_name?: string | null
           phone?: string | null
           is_approved?: boolean
+          notification_prefs?: Json
           created_at?: string
           updated_at?: string
         }
@@ -58,6 +61,7 @@ export interface Database {
           zip_code: string
           website: string | null
           logo_url: string | null
+          ai_preferences: Json | null
           is_approved: boolean
           approval_date: string | null
           created_at: string
@@ -76,6 +80,7 @@ export interface Database {
           zip_code: string
           website?: string | null
           logo_url?: string | null
+          ai_preferences?: Json | null
           is_approved?: boolean
           approval_date?: string | null
           created_at?: string
@@ -94,6 +99,7 @@ export interface Database {
           zip_code?: string
           website?: string | null
           logo_url?: string | null
+          ai_preferences?: Json | null
           is_approved?: boolean
           approval_date?: string | null
           created_at?: string
@@ -175,6 +181,9 @@ export interface Database {
           estimate_low: number | null
           estimate_high: number | null
           images: Json
+          ai_generated: boolean
+          ai_metadata: Json | null
+          hype_copy: string | null
           winner_id: string | null
           is_sold: boolean
           hammer_price: number | null
@@ -199,6 +208,9 @@ export interface Database {
           estimate_low?: number | null
           estimate_high?: number | null
           images?: Json
+          ai_generated?: boolean
+          ai_metadata?: Json | null
+          hype_copy?: string | null
           winner_id?: string | null
           is_sold?: boolean
           hammer_price?: number | null
@@ -223,6 +235,9 @@ export interface Database {
           estimate_low?: number | null
           estimate_high?: number | null
           images?: Json
+          ai_generated?: boolean
+          ai_metadata?: Json | null
+          hype_copy?: string | null
           winner_id?: string | null
           is_sold?: boolean
           hammer_price?: number | null
@@ -634,6 +649,145 @@ export interface Database {
           uploaded_at?: string
         }
       }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          message: string
+          type: string
+          is_read: boolean
+          batch_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          message: string
+          type?: string
+          is_read?: boolean
+          batch_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          message?: string
+          type?: string
+          is_read?: boolean
+          batch_id?: string | null
+          created_at?: string
+        }
+      }
+      user_interests: {
+        Row: {
+          id: string
+          user_id: string
+          category: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          category: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          category?: string
+          created_at?: string
+        }
+      }
+      user_device_tokens: {
+        Row: {
+          id: string
+          user_id: string
+          endpoint: string
+          p256dh: string | null
+          auth: string | null
+          last_used: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          endpoint: string
+          p256dh?: string | null
+          auth?: string | null
+          last_used?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          endpoint?: string
+          p256dh?: string | null
+          auth?: string | null
+          last_used?: string
+          created_at?: string
+        }
+      }
+      notification_batches: {
+        Row: {
+          id: string
+          admin_id: string | null
+          title: string
+          message: string
+          target_roles: string[]
+          severity: 'info' | 'warning' | 'urgent'
+          sent_count: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          admin_id?: string | null
+          title: string
+          message: string
+          target_roles?: string[]
+          severity?: 'info' | 'warning' | 'urgent'
+          sent_count?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          admin_id?: string | null
+          title?: string
+          message?: string
+          target_roles?: string[]
+          severity?: 'info' | 'warning' | 'urgent'
+          sent_count?: number
+          created_at?: string
+        }
+      }
+      feature_flags: {
+        Row: {
+          id: string
+          flag_name: string
+          is_enabled: boolean
+          description: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          flag_name: string
+          is_enabled?: boolean
+          description?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          flag_name?: string
+          is_enabled?: boolean
+          description?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
@@ -776,3 +930,8 @@ export type Invoice = Database['public']['Tables']['invoices']['Row']
 export type PaymentEvent = Database['public']['Tables']['payment_events']['Row']
 export type PayoutDue = Database['public']['Tables']['payouts_due']['Row']
 export type AuditLog = Database['public']['Tables']['audit_log']['Row']
+export type Notification = Database['public']['Tables']['notifications']['Row']
+export type UserInterest = Database['public']['Tables']['user_interests']['Row']
+export type UserDeviceToken = Database['public']['Tables']['user_device_tokens']['Row']
+export type NotificationBatch = Database['public']['Tables']['notification_batches']['Row']
+export type FeatureFlag = Database['public']['Tables']['feature_flags']['Row']

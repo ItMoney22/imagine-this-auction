@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Auction } from '@/lib/types/database'
 import { Save, ArrowLeft } from 'lucide-react'
@@ -30,7 +29,6 @@ export function AuctionForm({ auction }: AuctionFormProps) {
     starts_at: auction?.starts_at ? new Date(auction.starts_at).toISOString().slice(0, 16) : '',
     ends_at: auction?.ends_at ? new Date(auction.ends_at).toISOString().slice(0, 16) : '',
     anti_sniping_seconds: auction?.anti_sniping_seconds || 60,
-    reserve_allowed: auction?.reserve_allowed || false,
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -216,20 +214,6 @@ export function AuctionForm({ auction }: AuctionFormProps) {
             </p>
           </div>
 
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="reserve_allowed"
-              checked={formData.reserve_allowed}
-              onCheckedChange={(checked) => setFormData(prev => ({
-                ...prev,
-                reserve_allowed: checked
-              }))}
-            />
-            <Label htmlFor="reserve_allowed">Allow reserve prices on lots</Label>
-            <p className="text-sm text-gray-600">
-              Let bidders set minimum reserve prices for their lots
-            </p>
-          </div>
         </CardContent>
       </Card>
 

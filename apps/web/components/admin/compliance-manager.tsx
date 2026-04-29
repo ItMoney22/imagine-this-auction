@@ -78,6 +78,7 @@ interface ComplianceSummary {
 export default function ComplianceManager() {
   const [activeSection, setActiveSection] = useState<'overview' | 'suspicious' | 'flags' | 'documents'>('overview')
   const [loading, setLoading] = useState(true)
+  const [processingDocumentId, setProcessingDocumentId] = useState<string | null>(null)
   const [summary, setSummary] = useState<ComplianceSummary | null>(null)
   const [suspiciousUsers, setSuspiciousUsers] = useState<SuspiciousUser[]>([])
   const [complianceFlags, setComplianceFlags] = useState<ComplianceFlag[]>([])
@@ -185,6 +186,30 @@ export default function ComplianceManager() {
     if (!bytes) return 'Unknown'
     const mb = bytes / (1024 * 1024)
     return `${mb.toFixed(1)} MB`
+  }
+
+  const updateDocumentStatus = async (documentId: string, verificationStatus: 'approved' | 'rejected') => {
+    try {
+      setProcessingDocumentId(documentId)
+      const response = await fetch('/api/admin/compliance/kyc-documents', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          document_id: documentId,
+          verification_status: verificationStatus,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update document status')
+      }
+
+      await fetchSectionData()
+    } catch (error) {
+      console.error('Error updating document status:', error)
+    } finally {
+      setProcessingDocumentId(null)
+    }
   }
 
   if (loading) {
@@ -482,10 +507,20 @@ export default function ComplianceManager() {
                       </Button>
                       {doc.verification_status === 'pending' && (
                         <div className="flex space-x-1">
-                          <Button size="sm" className="bg-green-600 hover:bg-green-700">
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700"
+                            disabled={processingDocumentId === doc.id}
+                            onClick={() => updateDocumentStatus(doc.id, 'approved')}
+                          >
                             Approve
                           </Button>
-                          <Button size="sm" variant="destructive">
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            disabled={processingDocumentId === doc.id}
+                            onClick={() => updateDocumentStatus(doc.id, 'rejected')}
+                          >
                             Reject
                           </Button>
                         </div>

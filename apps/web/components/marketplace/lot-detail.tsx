@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -106,12 +107,15 @@ export function LotDetail({ lot, auction }: LotDetailProps) {
           {hasImages ? (
             <div className="relative">
               {/* Main image */}
-              <div className="aspect-square md:aspect-video bg-gray-100 rounded-t-lg overflow-hidden">
+              <div className="relative aspect-square overflow-hidden rounded-t-lg bg-gray-100 md:aspect-video">
                 {!imageError.has(currentImageIndex) ? (
-                  <img
+                  <Image
                     src={images[currentImageIndex]}
                     alt={`${lot.title} - Image ${currentImageIndex + 1}`}
-                    className="w-full h-full object-cover"
+                    fill
+                    unoptimized
+                    sizes="(max-width: 768px) 100vw, 66vw"
+                    className="object-cover"
                     onError={() => handleImageError(currentImageIndex)}
                   />
                 ) : (
@@ -164,10 +168,13 @@ export function LotDetail({ lot, auction }: LotDetailProps) {
                   }`}
                 >
                   {!imageError.has(index) ? (
-                    <img
+                    <Image
                       src={image}
                       alt={`Thumbnail ${index + 1}`}
-                      className="w-full h-full object-cover"
+                      width={64}
+                      height={64}
+                      unoptimized
+                      className="h-full w-full object-cover"
                       onError={() => handleImageError(index)}
                     />
                   ) : (

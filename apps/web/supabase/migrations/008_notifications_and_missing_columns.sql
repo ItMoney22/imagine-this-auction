@@ -1,0 +1,3 @@
+-- Compatibility no-op.
+-- Notification tables and missing columns are now created in 006_notifications.sql
+-- so fresh environments apply them in the correct order without duplicate policy errors.

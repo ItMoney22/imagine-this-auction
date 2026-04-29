@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,22 +10,24 @@ import { Eye, Star, Package } from 'lucide-react'
 
 interface LotCardProps {
   lot: any
-  auction: any
-  onImageError: () => void
-  hasImageError: boolean
+  auction?: any
+  onImageError?: () => void
+  hasImageError?: boolean
 }
 
-export function LotCard({ lot, auction, onImageError, hasImageError }: LotCardProps) {
+export function LotCard({ lot, auction: auctionProp, onImageError, hasImageError = false }: LotCardProps) {
+  const auction = auctionProp || lot.auctions
+
   const getCurrentHighBid = () => {
+    if (lot.current_high_bid) return lot.current_high_bid
     if (!lot.bids || lot.bids.length === 0) {
       return lot.starting_bid
     }
-
     return Math.max(...lot.bids.map((bid: any) => bid.amount))
   }
 
   const getBidCount = () => {
-    return lot.bids?.length || 0
+    return lot.bid_count || lot.bids?.length || 0
   }
 
   const getNextBidAmount = () => {
@@ -37,6 +40,7 @@ export function LotCard({ lot, auction, onImageError, hasImageError }: LotCardPr
   }
 
   const isLive = () => {
+    if (!auction?.starts_at || !auction?.ends_at) return true
     const now = new Date()
     const startsAt = new Date(auction.starts_at)
     const endsAt = new Date(auction.ends_at)
@@ -78,12 +82,15 @@ export function LotCard({ lot, auction, onImageError, hasImageError }: LotCardPr
 
       <CardContent className="space-y-4">
         {/* Image */}
-        <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
+        <div className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden">
           {hasValidImage ? (
-            <img
+            <Image
               src={primaryImage}
               alt={lot.title}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+              fill
+              unoptimized
+              sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 25vw"
+              className="object-cover group-hover:scale-105 transition-transform duration-200"
               onError={onImageError}
             />
           ) : (

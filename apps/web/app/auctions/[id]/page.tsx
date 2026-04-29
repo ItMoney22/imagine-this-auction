@@ -20,58 +20,51 @@ export default async function AuctionDetailPage({ params: routeParamsPromise, se
   const params = await searchParams
   const supabase = await createClient()
 
-  // Get auction with auctioneer info
-  const { data: auction } = await supabase
-    .from('auctions')
-    .select(`
-      *,
-      auctioneers (
-        company_name,
-        id,
-        is_approved
-      )
-    `)
-    .eq('id', routeParams.id)
-    .single()
+  const [{ data: auction }, { data: authData }] = await Promise.all([
+    supabase
+      .from('auctions')
+      .select(`
+        *,
+        auctioneers (
+          company_name,
+          id,
+          is_approved
+        )
+      `)
+      .eq('id', routeParams.id)
+      .single(),
+    supabase.auth.getUser(),
+  ])
 
   if (!auction) return notFound()
 
-  // TEMPORARY: Skip auth checks for development - allow all auctions to be viewed
-  // Check if auction is accessible (live/published or user owns it)
-  // const {
-  //   data: { user },
-  // } = await supabase.auth.getUser()
+  const user = authData.user
+  let canView = auction.status === 'live' && auction.auctioneers?.is_approved
 
-  // let canView = auction.status === 'live' && auction.auctioneers?.approved
+  if (user) {
+    const [{ data: auctioneer }, { data: userProfile }] = await Promise.all([
+      supabase
+        .from('auctioneers')
+        .select('id')
+        .eq('user_id', user.id)
+        .single(),
+      supabase
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .single(),
+    ])
 
-  // Allow owners to view their own auctions
-  // if (user) {
-  //   const { data: auctioneer } = await supabase
-  //     .from('auctioneers')
-  //     .select('id')
-  //     .eq('user_id', user.id)
-  //     .single()
+    if (auctioneer && auction.auctioneer_id === auctioneer.id) {
+      canView = true
+    }
 
-  //   if (auctioneer && auction.auctioneer_id === auctioneer.id) {
-  //     canView = true
-  //   }
+    if (userProfile?.role === 'admin') {
+      canView = true
+    }
+  }
 
-  //   // Allow admins to view all auctions
-  //   const { data: userProfile } = await supabase
-  //     .from('users')
-  //     .select('role')
-  //     .eq('id', user.id)
-  //     .single()
-
-  //   if (userProfile?.role === 'admin') {
-  //     canView = true
-  //   }
-  // }
-
-  // if (!canView) return notFound()
-
-  // TEMPORARY: Allow viewing all auctions for development
-  const canView = true
+  if (!canView) return notFound()
 
   // Build lots query
   let lotsQuery = supabase
@@ -80,7 +73,7 @@ export default async function AuctionDetailPage({ params: routeParamsPromise, se
       *,
       bids (
         id,
-        amount_itc,
+        amount,
         created_at,
         users (
           first_name,
@@ -108,10 +101,10 @@ export default async function AuctionDetailPage({ params: routeParamsPromise, se
       lotsQuery = lotsQuery.order('lot_number', { ascending: true })
       break
     case 'price_low':
-      lotsQuery = lotsQuery.order('start_price_itc', { ascending: true })
+      lotsQuery = lotsQuery.order('starting_bid', { ascending: true })
       break
     case 'price_high':
-      lotsQuery = lotsQuery.order('start_price_itc', { ascending: false })
+      lotsQuery = lotsQuery.order('starting_bid', { ascending: false })
       break
     case 'title':
       lotsQuery = lotsQuery.order('title', { ascending: true })
@@ -120,15 +113,15 @@ export default async function AuctionDetailPage({ params: routeParamsPromise, se
       lotsQuery = lotsQuery.order('lot_number', { ascending: true })
   }
 
-  const { data: lots } = await lotsQuery
-
-  // Get unique categories for filtering
-  const { data: categories } = await supabase
-    .from('lots')
-    .select('category')
-    .eq('auction_id', auction.id)
-    .not('category', 'is', null)
-    .order('category')
+  const [{ data: lots }, { data: categories }] = await Promise.all([
+    lotsQuery,
+    supabase
+      .from('lots')
+      .select('category')
+      .eq('auction_id', auction.id)
+      .not('category', 'is', null)
+      .order('category'),
+  ])
 
   const uniqueCategories = Array.from(
     new Set(categories?.map(c => c.category).filter(Boolean))

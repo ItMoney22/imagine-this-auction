@@ -30,14 +30,14 @@ export default async function NotificationSettingsPage() {
     .from('user_interests')
     .select('*')
     .eq('user_id', user.id)
-    .order('weight', { ascending: false })
+    .order('created_at', { ascending: false })
 
   // Get user device tokens
   const { data: deviceTokens } = await supabase
     .from('user_device_tokens')
     .select('*')
     .eq('user_id', user.id)
-    .eq('is_active', true)
+    .order('last_used', { ascending: false })
 
   // Get recent notifications
   const { data: recentNotifications } = await supabase

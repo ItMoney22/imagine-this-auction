@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { createClient } from '@/lib/supabase/client'
 import InvoiceManager from './invoice-manager'
 import PayoutManager from './payout-manager'
 import UserManager from './user-manager'
@@ -76,47 +77,128 @@ export default function AdminDashboard() {
 }
 
 function OverviewTab() {
-  // TODO: Add real statistics
-  const stats = [
-    {
-      title: 'Total Auctions',
-      value: '45',
-      description: 'Active and completed auctions',
-      trend: '+12% from last month',
-    },
-    {
-      title: 'Pending Invoices',
-      value: '12',
-      description: 'Invoices awaiting payment',
-      trend: '3 new today',
-    },
-    {
-      title: 'Escrow Holdings',
-      value: '$24,570',
-      description: 'Funds held in escrow',
-      trend: '+$2,340 this week',
-    },
-    {
-      title: 'Pending Payouts',
-      value: '$8,420',
-      description: 'Owed to auctioneers',
-      trend: '5 payouts due',
-    },
-  ]
+  const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState([
+    { title: 'Total Auctions', value: '0', description: 'Active and completed auctions' },
+    { title: 'Pending Invoices', value: '0', description: 'Invoices awaiting payment' },
+    { title: 'Escrow Holdings', value: '$0.00', description: 'Funds held in escrow' },
+    { title: 'Pending Payouts', value: '$0.00', description: 'Owed to auctioneers' },
+  ])
+  const [recentActivity, setRecentActivity] = useState<
+    { label: string; detail: string; badge: string; badgeVariant: 'default' | 'secondary' | 'outline' }[]
+  >([])
+
+  useEffect(() => {
+    const loadOverview = async () => {
+      try {
+        setLoading(true)
+        const supabase = createClient()
+        const [
+          auctionsResult,
+          pendingInvoicesResult,
+          escrowResult,
+          pendingPayoutsResult,
+          recentAuctionsResult,
+          recentInvoicesResult,
+          recentPayoutsResult,
+        ] = await Promise.all([
+          supabase.from('auctions').select('id', { count: 'exact', head: true }),
+          supabase.from('invoices').select('id', { count: 'exact', head: true }).eq('is_paid', false),
+          supabase
+            .from('wallet_ledger')
+            .select('amount, transaction_type')
+            .in('transaction_type', ['escrow_hold', 'escrow_release']),
+          supabase
+            .from('payouts_due')
+            .select('amount')
+            .eq('is_paid', false),
+          supabase.from('auctions').select('title, created_at').order('created_at', { ascending: false }).limit(2),
+          supabase.from('invoices').select('id, total_amount, created_at, is_shipped').order('created_at', { ascending: false }).limit(2),
+          supabase.from('payouts_due').select('id, amount, created_at, is_paid').order('created_at', { ascending: false }).limit(2),
+        ])
+
+        const escrowTotal = (escrowResult.data || []).reduce((sum, entry) => {
+          return entry.transaction_type === 'escrow_release' ? sum - entry.amount : sum + entry.amount
+        }, 0)
+        const pendingPayoutTotal = (pendingPayoutsResult.data || []).reduce((sum, payout) => sum + payout.amount, 0)
+        const formatCurrency = (amount: number) =>
+          new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount / 100)
+
+        setStats([
+          {
+            title: 'Total Auctions',
+            value: `${auctionsResult.count || 0}`,
+            description: 'Active and completed auctions',
+          },
+          {
+            title: 'Pending Invoices',
+            value: `${pendingInvoicesResult.count || 0}`,
+            description: 'Invoices awaiting payment',
+          },
+          {
+            title: 'Escrow Holdings',
+            value: formatCurrency(escrowTotal),
+            description: 'Funds held in escrow',
+          },
+          {
+            title: 'Pending Payouts',
+            value: formatCurrency(pendingPayoutTotal),
+            description: 'Owed to auctioneers',
+          },
+        ])
+
+        const activity = [
+          ...(recentAuctionsResult.data || []).map((auction) => ({
+            sortKey: auction.created_at,
+            label: `Auction created: ${auction.title}`,
+            detail: 'New auction added to the marketplace',
+            badge: new Date(auction.created_at).toLocaleDateString(),
+            badgeVariant: 'secondary' as const,
+          })),
+          ...(recentInvoicesResult.data || []).map((invoice) => ({
+            sortKey: invoice.created_at,
+            label: `Invoice ${invoice.id.slice(0, 8)}${invoice.is_shipped ? ' shipped' : ' created'}`,
+            detail: `Total ${formatCurrency(invoice.total_amount)}`,
+            badge: invoice.is_shipped ? 'Shipped' : 'Invoice',
+            badgeVariant: invoice.is_shipped ? 'default' as const : 'outline' as const,
+          })),
+          ...(recentPayoutsResult.data || []).map((payout) => ({
+            sortKey: payout.created_at,
+            label: `Payout ${payout.id.slice(0, 8)}`,
+            detail: `${formatCurrency(payout.amount)} ${payout.is_paid ? 'paid' : 'pending'}`,
+            badge: payout.is_paid ? 'Paid' : 'Pending',
+            badgeVariant: payout.is_paid ? 'default' as const : 'secondary' as const,
+          })),
+        ]
+          .sort((a, b) => new Date(b.sortKey).getTime() - new Date(a.sortKey).getTime())
+          .slice(0, 5)
+          .map(({ sortKey: _sortKey, ...item }) => item)
+
+        setRecentActivity(activity)
+      } catch (error) {
+        console.error('Failed to load admin overview statistics:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadOverview()
+  }, [])
 
   return (
     <div className="space-y-6">
       {/* Stats Grid */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat, index) => (
-          <Card key={index}>
+        {stats.map((stat) => (
+          <Card key={stat.title}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-2xl font-bold">{stat.value}</CardTitle>
+              <CardTitle className="text-2xl font-bold">
+                {loading ? <div className="h-8 w-24 animate-pulse rounded bg-gray-200" /> : stat.value}
+              </CardTitle>
               <CardDescription>{stat.title}</CardDescription>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-gray-600">{stat.description}</p>
-              <p className="mt-1 text-xs text-green-600">{stat.trend}</p>
             </CardContent>
           </Card>
         ))}
@@ -131,29 +213,27 @@ function OverviewTab() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between border-b pb-2">
-              <div>
-                <p className="font-medium">Auction #AUC-001 ended</p>
-                <p className="text-sm text-gray-600">12 lots processed, 8 winners</p>
-              </div>
-              <Badge variant="secondary">2 hours ago</Badge>
+          {loading ? (
+            <div className="space-y-3">
+              {[0, 1, 2].map((item) => (
+                <div key={item} className="h-16 animate-pulse rounded bg-gray-100" />
+              ))}
             </div>
-            <div className="flex items-center justify-between border-b pb-2">
-              <div>
-                <p className="font-medium">Invoice #INV-1234 shipped</p>
-                <p className="text-sm text-gray-600">Escrow released to auctioneer</p>
-              </div>
-              <Badge variant="secondary">4 hours ago</Badge>
+          ) : recentActivity.length === 0 ? (
+            <p className="text-sm text-gray-600">No recent activity available.</p>
+          ) : (
+            <div className="space-y-4">
+              {recentActivity.map((item) => (
+                <div key={`${item.label}-${item.badge}`} className="flex items-center justify-between border-b pb-2">
+                  <div>
+                    <p className="font-medium">{item.label}</p>
+                    <p className="text-sm text-gray-600">{item.detail}</p>
+                  </div>
+                  <Badge variant={item.badgeVariant}>{item.badge}</Badge>
+                </div>
+              ))}
             </div>
-            <div className="flex items-center justify-between border-b pb-2">
-              <div>
-                <p className="font-medium">New auctioneer registration</p>
-                <p className="text-sm text-gray-600">Heritage Auctions LLC</p>
-              </div>
-              <Badge variant="outline">Pending approval</Badge>
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>

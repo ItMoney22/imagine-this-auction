@@ -28,14 +28,14 @@ export default async function AdminNotificationsPage() {
   const [
     { data: batchStats },
     { data: recentBatches },
-    { data: pendingNotifications },
+    { count: pendingNotifications },
     { data: lotsWithHype },
     { data: featureFlags }
   ] = await Promise.all([
     // Batch statistics
     supabase
       .from('notification_batches')
-      .select('batch_type, status, sent_count, failed_count, created_at')
+      .select('id, title, severity, sent_count, created_at')
       .order('created_at', { ascending: false })
       .limit(20),
 
@@ -49,8 +49,8 @@ export default async function AdminNotificationsPage() {
     // Pending notifications count
     supabase
       .from('notifications')
-      .select('type, count()', { count: 'exact' })
-      .eq('status', 'pending'),
+      .select('id', { count: 'exact', head: true })
+      .eq('is_read', false),
 
     // Lots with hype copy for preview
     supabase
@@ -87,7 +87,7 @@ export default async function AdminNotificationsPage() {
         {/* Quick Stats */}
         <NotificationStats
           batchStats={batchStats || []}
-          pendingNotifications={pendingNotifications || []}
+          pendingNotifications={pendingNotifications || 0}
           featureFlags={featureFlags || []}
         />
 

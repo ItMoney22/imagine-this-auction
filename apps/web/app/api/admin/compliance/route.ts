@@ -6,32 +6,30 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
     const { searchParams } = new URL(request.url)
 
-    // TEMPORARY: Skip auth for development
-    // Check authentication and admin role
-    // const {
-    //   data: { user },
-    //   error: authError,
-    // } = await supabase.auth.getUser()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
 
-    // if (authError || !user) {
-    //   return NextResponse.json(
-    //     { error: 'Authentication required' },
-    //     { status: 401 }
-    //   )
-    // }
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
 
-    // const { data: userData, error: userError } = await supabase
-    //   .from('users')
-    //   .select('role')
-    //   .eq('id', user.id)
-    //   .single()
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single()
 
-    // if (userError || !userData || userData.role !== 'admin') {
-    //   return NextResponse.json(
-    //     { error: 'Admin access required' },
-    //     { status: 403 }
-    //   )
-    // }
+    if (userError || !userData || userData.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Admin access required' },
+        { status: 403 }
+      )
+    }
 
     const action = searchParams.get('action')
 

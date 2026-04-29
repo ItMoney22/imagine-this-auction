@@ -3,69 +3,35 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
+import { notFound } from 'next/navigation'
 import { formatDate, formatTimeRemaining } from '@/lib/utils'
 import { Plus, Eye, Edit, Package } from 'lucide-react'
 
 export default async function AuctionsPage() {
   const supabase = await createClient()
 
-  // TEMPORARY: Skip auth for development
-  // const {
-  //   data: { user },
-  // } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  // if (!user) return null
+  if (!user) return notFound()
 
-  // Get auctioneer info
-  // const { data: auctioneer } = await supabase
-  //   .from('auctioneers')
-  //   .select('*')
-  //   .eq('user_id', user.id)
-  //   .single()
+  const { data: auctioneer } = await supabase
+    .from('auctioneers')
+    .select('*')
+    .eq('user_id', user.id)
+    .single()
 
-  // if (!auctioneer) return null
+  if (!auctioneer) return notFound()
 
-  // TEMPORARY: Use dummy auctioneer data for development
-  const auctioneer = {
-    id: 'dummy-auctioneer-id',
-    organization_name: 'Test Auction House'
-  }
-
-  // TEMPORARY: Skip database query for development - use dummy data
-  // const { data: auctions } = await supabase
-  //   .from('auctions')
-  //   .select(`
-  //     *,
-  //     lots (count)
-  //   `)
-  //   .eq('auctioneer_id', auctioneer.id)
-  //   .order('created_at', { ascending: false })
-
-  // TEMPORARY: Use dummy auctions data for development
-  const auctions = [
-    {
-      id: 'dummy-auction-1',
-      title: 'Sample Auction 1',
-      description: 'This is a sample auction for development testing',
-      status: 'live',
-      starts_at: new Date(Date.now() - 86400000).toISOString(), // Started yesterday
-      ends_at: new Date(Date.now() + 86400000).toISOString(), // Ends tomorrow
-      anti_sniping_seconds: 300,
-      created_at: new Date().toISOString(),
-      lots: [{ count: 5 }]
-    },
-    {
-      id: 'dummy-auction-2',
-      title: 'Sample Auction 2',
-      description: 'Another sample auction for development',
-      status: 'draft',
-      starts_at: new Date(Date.now() + 172800000).toISOString(), // Starts in 2 days
-      ends_at: new Date(Date.now() + 259200000).toISOString(), // Ends in 3 days
-      anti_sniping_seconds: 180,
-      created_at: new Date().toISOString(),
-      lots: [{ count: 12 }]
-    }
-  ]
+  const { data: auctions } = await supabase
+    .from('auctions')
+    .select(`
+      *,
+      lots (count)
+    `)
+    .eq('auctioneer_id', auctioneer.id)
+    .order('created_at', { ascending: false })
 
   const getStatusBadge = (auction: any) => {
     const now = new Date()

@@ -1,8 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { LotDetail } from '@/components/marketplace/lot-detail'
-import { BiddingPanel } from '@/components/marketplace/bidding-panel'
-import { BidHistory } from '@/components/marketplace/bid-history'
+import { LotBiddingSidebar } from '@/components/marketplace/lot-bidding-sidebar'
 
 interface Props {
   params: Promise<{
@@ -41,6 +40,10 @@ export default async function LotDetailPage({ params }: Props) {
 
   // All live auctions are viewable
   const canView = auction.status === 'live' || auction.status === 'scheduled'
+
+  if (!canView) {
+    return notFound()
+  }
 
   // Get current user profile for bidding
   let userProfile = null
@@ -102,21 +105,13 @@ export default async function LotDetailPage({ params }: Props) {
           </div>
 
           {/* Sidebar - Bidding & History */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Bidding Panel */}
-            <BiddingPanel
+          <div className="lg:col-span-1">
+            <LotBiddingSidebar
               lot={lot}
               auction={auction}
               user={userProfile}
               walletBalance={walletBalance}
-              currentBids={bids || []}
-            />
-
-            {/* Bid History */}
-            <BidHistory
-              lot={lot}
-              bids={bids || []}
-              currentUser={userProfile}
+              initialBids={bids || []}
             />
           </div>
         </div>

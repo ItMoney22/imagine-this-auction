@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { User } from '@/lib/types/database'
 import { Button } from '@/components/ui/button'
-import { Menu, X, Gavel, User as UserIcon, LogOut } from 'lucide-react'
+import Image from 'next/image'
+import { Menu, X, User as UserIcon, LogOut } from 'lucide-react'
 
 interface NavbarProps {
   user?: User | null
@@ -47,11 +48,9 @@ export function Navbar({ user }: NavbarProps) {
       <div className="mx-auto flex h-20 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-10">
           <Link href="/" className="flex items-center space-x-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 text-white shadow-lg">
-              <Gavel className="h-5 w-5" />
-            </span>
+            <Image src="/images/logo-mark.webp" alt="ImagineThis" width={40} height={40} className="rounded-xl shadow-lg" />
             <span className="text-lg font-semibold text-slate-900">
-              ImagineThisAuction
+              ImagineThis<span className="text-purple-600">Auction</span>
             </span>
           </Link>
 

@@ -10,6 +10,10 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function POST() {
   try {
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ error: 'Not available in production' }, { status: 403 })
+    }
+
     const supabase = await createClient()
 
     console.log('Demo migration: Starting schema updates...')

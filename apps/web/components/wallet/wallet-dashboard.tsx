@@ -20,6 +20,7 @@ export function WalletDashboard({ user }: WalletDashboardProps) {
   const [error, setError] = useState<string | null>(null)
   const searchParams = useSearchParams()
   const { toast } = useToast()
+  const providerLabel = PROVIDER_LABEL[PAYMENT_PROVIDER]
 
   // Handle success/error states from PaymentCloud or legacy Stripe redirect
   useEffect(() => {
@@ -171,4 +172,3 @@ export function WalletDashboard({ user }: WalletDashboardProps) {
     </div>
   )
 }
-  const providerLabel = PROVIDER_LABEL[PAYMENT_PROVIDER]

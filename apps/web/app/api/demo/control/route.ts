@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { DEMO, DemoState, generateDemoRunId } from '@/config/demo'
 import { exec } from 'child_process'
+import path from 'path'
 import { promisify } from 'util'
 
 const execAsync = promisify(exec)
@@ -17,6 +18,10 @@ export async function POST(request: NextRequest) {
   let requestBody = null
 
   try {
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ error: 'Not available in production' }, { status: 403 })
+    }
+
     requestBody = await request.json()
     const { action } = requestBody
 
@@ -188,12 +193,21 @@ async function startDemo(supabase: any, demoState: DemoState) {
     // Start worker processes (in a real deployment, this would use PM2 or similar)
     // For development, we'll start them as background processes
     try {
-      // Start auction timer
-      execAsync('cd /root/imagine-this-auction/apps/web && nohup tsx workers/auction-timer.ts > /tmp/auction-timer.log 2>&1 &')
+      const appRoot = process.cwd()
+      const auctionTimerWorker = path.resolve(appRoot, 'workers', 'auction-timer.ts')
+      const biddingBotsWorker = path.resolve(appRoot, 'workers', 'bidding-bots.ts')
+
+      const auctionTimerCommand = process.platform === 'win32'
+        ? `start /B "" tsx "${auctionTimerWorker}"`
+        : `nohup tsx "${auctionTimerWorker}" > /tmp/auction-timer.log 2>&1 &`
+      const biddingBotsCommand = process.platform === 'win32'
+        ? `start /B "" tsx "${biddingBotsWorker}"`
+        : `nohup tsx "${biddingBotsWorker}" > /tmp/bidding-bots.log 2>&1 &`
+
+      execAsync(auctionTimerCommand, { cwd: appRoot })
         .catch(err => console.warn('Could not start auction timer:', err))
 
-      // Start bidding bots
-      execAsync('cd /root/imagine-this-auction/apps/web && nohup tsx workers/bidding-bots.ts > /tmp/bidding-bots.log 2>&1 &')
+      execAsync(biddingBotsCommand, { cwd: appRoot })
         .catch(err => console.warn('Could not start bidding bots:', err))
     } catch (err) {
       console.warn('Worker processes may not have started:', err)
@@ -328,6 +342,10 @@ async function resetDemo(supabase: any, demoState: DemoState) {
 }
 
 export async function GET() {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not available in production' }, { status: 403 })
+  }
+
   if (!DEMO.ENABLED) {
     return NextResponse.json(
       { error: 'Demo mode is not enabled' },

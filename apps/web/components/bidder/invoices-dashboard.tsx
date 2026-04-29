@@ -33,6 +33,7 @@ export default function InvoicesDashboard() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchInvoices()
@@ -41,6 +42,7 @@ export default function InvoicesDashboard() {
   const fetchInvoices = async () => {
     try {
       setLoading(true)
+      setError(null)
       const params = new URLSearchParams()
       if (filter !== 'all') {
         params.append('status', filter)
@@ -52,6 +54,7 @@ export default function InvoicesDashboard() {
       const data = await response.json()
       setInvoices(data.invoices || [])
     } catch (error) {
+      setError('We could not load your invoices. Please try again.')
       console.error('Error fetching invoices:', error)
     } finally {
       setLoading(false)
@@ -112,6 +115,23 @@ export default function InvoicesDashboard() {
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-blue-600"></div>
                 <p className="mt-2 text-gray-600">Loading your invoices...</p>
               </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="mx-auto max-w-4xl px-4 py-8">
+          <Card>
+            <CardContent className="py-8 text-center">
+              <p className="text-red-600">{error}</p>
+              <Button onClick={fetchInvoices} variant="outline" className="mt-4">
+                Try Again
+              </Button>
             </CardContent>
           </Card>
         </div>

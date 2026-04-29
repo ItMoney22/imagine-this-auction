@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { DEMO } from '@/config/demo'
 import { demoLogger, type LogLevel, type LogCategory } from '@/lib/demo/logger'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * Demo Logs API
  *
@@ -10,6 +12,10 @@ import { demoLogger, type LogLevel, type LogCategory } from '@/lib/demo/logger'
  */
 
 export async function GET(request: NextRequest) {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not available in production' }, { status: 403 })
+  }
+
   if (!DEMO.ENABLED) {
     return NextResponse.json(
       { error: 'Demo mode is not enabled' },
@@ -115,6 +121,10 @@ async function getLogsSummary() {
 }
 
 export async function POST(request: NextRequest) {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not available in production' }, { status: 403 })
+  }
+
   if (!DEMO.ENABLED) {
     return NextResponse.json(
       { error: 'Demo mode is not enabled' },

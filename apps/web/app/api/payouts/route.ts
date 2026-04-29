@@ -134,23 +134,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if payout exists and is not already paid
-    const { data: payout, error: payoutError } = await supabase
-      .from('payouts_due')
-      .select('*')
-      .eq('id', payout_id)
-      .eq('is_paid', false)
-      .single()
-
-    if (payoutError || !payout) {
-      return NextResponse.json(
-        { error: 'Payout not found or already paid' },
-        { status: 404 }
-      )
-    }
-
-    // Mark payout as paid
-    const { error: updateError } = await supabase
+    const { data: payout, error: updateError } = await supabase
       .from('payouts_due')
       .update({
         is_paid: true,
@@ -158,12 +142,22 @@ export async function POST(request: NextRequest) {
         payment_reference,
       })
       .eq('id', payout_id)
+      .eq('is_paid', false)
+      .select('id')
+      .maybeSingle()
 
     if (updateError) {
       console.error('Failed to update payout:', updateError)
       return NextResponse.json(
         { error: 'Failed to mark payout as paid' },
         { status: 500 }
+      )
+    }
+
+    if (!payout) {
+      return NextResponse.json(
+        { error: 'Payout not found or already paid' },
+        { status: 404 }
       )
     }
 

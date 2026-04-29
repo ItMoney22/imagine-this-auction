@@ -6,32 +6,30 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
     const { searchParams } = new URL(request.url)
 
-    // TEMPORARY: Skip auth for development
-    // Check authentication and admin role
-    // const {
-    //   data: { user },
-    //   error: authError,
-    // } = await supabase.auth.getUser()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
 
-    // if (authError || !user) {
-    //   return NextResponse.json(
-    //     { error: 'Authentication required' },
-    //     { status: 401 }
-    //   )
-    // }
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
 
-    // const { data: userData, error: userError } = await supabase
-    //   .from('users')
-    //   .select('role')
-    //   .eq('id', user.id)
-    //   .single()
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single()
 
-    // if (userError || !userData || userData.role !== 'admin') {
-    //   return NextResponse.json(
-    //     { error: 'Admin access required' },
-    //     { status: 403 }
-    //   )
-    // }
+    if (userError || !userData || userData.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Admin access required' },
+        { status: 403 }
+      )
+    }
 
     // Build query with comprehensive auctioneer data
     let query = supabase
@@ -89,37 +87,79 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get performance stats for each auctioneer
-    const auctioneersWithStats = await Promise.all(
-      auctioneers.map(async (auctioneer) => {
-        // Get auction count and revenue
-        const { data: auctionStats } = await supabase
-          .from('auctions')
-          .select('id, status')
-          .eq('auctioneer_id', auctioneer.id)
+    const auctioneerIds = auctioneers.map((auctioneer) => auctioneer.id)
+    const [auctionsResult, payoutsResult] = await Promise.all([
+      auctioneerIds.length > 0
+        ? supabase
+            .from('auctions')
+            .select('auctioneer_id, status')
+            .in('auctioneer_id', auctioneerIds)
+        : Promise.resolve({ data: [], error: null }),
+      auctioneerIds.length > 0
+        ? supabase
+            .from('payouts_due')
+            .select('auctioneer_id, amount, is_paid')
+            .in('auctioneer_id', auctioneerIds)
+        : Promise.resolve({ data: [], error: null }),
+    ])
 
-        // Get total commission owed
-        const { data: commissionData } = await supabase
-          .from('payouts_due')
-          .select('amount, is_paid')
-          .eq('auctioneer_id', auctioneer.id)
+    if (auctionsResult.error) {
+      console.error('Failed to fetch auction statistics:', auctionsResult.error)
+      return NextResponse.json(
+        { error: 'Failed to fetch auction statistics' },
+        { status: 500 }
+      )
+    }
 
-        const totalAuctions = auctionStats?.length || 0
-        const completedAuctions = auctionStats?.filter(a => a.status === 'ended' || a.status === 'completed').length || 0
-        const totalCommissionOwed = commissionData?.filter(p => !p.is_paid).reduce((sum, p) => sum + p.amount, 0) || 0
-        const totalCommissionPaid = commissionData?.filter(p => p.is_paid).reduce((sum, p) => sum + p.amount, 0) || 0
+    if (payoutsResult.error) {
+      console.error('Failed to fetch payout statistics:', payoutsResult.error)
+      return NextResponse.json(
+        { error: 'Failed to fetch payout statistics' },
+        { status: 500 }
+      )
+    }
 
-        return {
-          ...auctioneer,
-          stats: {
-            total_auctions: totalAuctions,
-            completed_auctions: completedAuctions,
-            commission_owed: totalCommissionOwed,
-            commission_paid: totalCommissionPaid,
-          }
+    const auctionStatsByAuctioneer = new Map<string, { total: number; completed: number }>()
+    for (const auction of auctionsResult.data || []) {
+      const current = auctionStatsByAuctioneer.get(auction.auctioneer_id) || {
+        total: 0,
+        completed: 0,
+      }
+      current.total += 1
+      if (auction.status === 'ended' || auction.status === 'completed') {
+        current.completed += 1
+      }
+      auctionStatsByAuctioneer.set(auction.auctioneer_id, current)
+    }
+
+    const payoutStatsByAuctioneer = new Map<string, { owed: number; paid: number }>()
+    for (const payout of payoutsResult.data || []) {
+      const current = payoutStatsByAuctioneer.get(payout.auctioneer_id) || {
+        owed: 0,
+        paid: 0,
+      }
+      if (payout.is_paid) {
+        current.paid += payout.amount
+      } else {
+        current.owed += payout.amount
+      }
+      payoutStatsByAuctioneer.set(payout.auctioneer_id, current)
+    }
+
+    const auctioneersWithStats = auctioneers.map((auctioneer) => {
+      const auctionStats = auctionStatsByAuctioneer.get(auctioneer.id) || { total: 0, completed: 0 }
+      const payoutStats = payoutStatsByAuctioneer.get(auctioneer.id) || { owed: 0, paid: 0 }
+
+      return {
+        ...auctioneer,
+        stats: {
+          total_auctions: auctionStats.total,
+          completed_auctions: auctionStats.completed,
+          commission_owed: payoutStats.owed,
+          commission_paid: payoutStats.paid,
         }
-      })
-    )
+      }
+    })
 
     return NextResponse.json({ auctioneers: auctioneersWithStats })
 

@@ -30,7 +30,7 @@ export default async function BrowseLotsPage({ searchParams }: Props) {
         ends_at,
         auctioneers (
           company_name,
-          slug
+          id
         )
       )
     `)
@@ -71,25 +71,23 @@ export default async function BrowseLotsPage({ searchParams }: Props) {
       query = query.order('lot_number', { ascending: true })
   }
 
-  const { data: lots } = await query
-
-  // Get categories for filter
-  const { data: categories } = await supabase
-    .from('lots')
-    .select('category')
-    .not('category', 'is', null)
-    .order('category')
+  const [{ data: lots }, { data: categories }, { data: auctions }] = await Promise.all([
+    query,
+    supabase
+      .from('lots')
+      .select('category')
+      .not('category', 'is', null)
+      .order('category'),
+    supabase
+      .from('auctions')
+      .select('id, title')
+      .eq('status', 'live')
+      .order('title'),
+  ])
 
   const uniqueCategories = Array.from(
     new Set(categories?.map(c => c.category).filter(Boolean))
   )
-
-  // Get auctions for filter
-  const { data: auctions } = await supabase
-    .from('auctions')
-    .select('id, title')
-    .eq('status', 'live')
-    .order('title')
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -107,7 +105,7 @@ export default async function BrowseLotsPage({ searchParams }: Props) {
         {/* Search and Filters */}
         <div className="flex flex-col lg:flex-row gap-6 mb-8">
           <div className="flex-1">
-            <SearchBar />
+            <SearchBar placeholder="Search lots..." />
           </div>
           <div className="lg:w-64">
             <LotFilters

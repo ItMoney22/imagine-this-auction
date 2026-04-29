@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { WalletTransaction } from '@/lib/payments/types'
@@ -171,6 +172,3 @@ export function TransactionHistory({ transactions }: TransactionHistoryProps) {
     </Card>
   )
 }
-
-// Helper to import React for createElement
-import React from 'react'

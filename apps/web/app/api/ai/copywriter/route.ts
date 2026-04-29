@@ -212,11 +212,11 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient()
     const { data: flagData } = await supabase
       .from('feature_flags')
-      .select('enabled')
-      .eq('flag_name', 'COPYWRITER_ENABLED')
+      .select('is_enabled')
+      .eq('flag_name', 'ai_copywriter')
       .single()
 
-    if (!flagData?.enabled) {
+    if (!flagData?.is_enabled) {
       return NextResponse.json(
         { error: 'AI copywriter is currently disabled' },
         { status: 503 }
@@ -251,7 +251,7 @@ export async function POST(request: NextRequest) {
         // Update lot in database
         const { error: updateError } = await supabase
           .from('lots')
-          .update({ hype_copy: hypeCopy })
+          .update({ hype_copy: JSON.stringify(hypeCopy) })
           .eq('id', lot.id)
 
         if (updateError) {
@@ -278,12 +278,11 @@ export async function POST(request: NextRequest) {
     if (batch_id) {
       await supabase.from('notification_batches').upsert({
         id: batch_id,
-        batch_type: 'copywriter_generation',
+        title: `Copywriter batch ${batch_id}`,
+        message: `Generated ${results.length} lot descriptions with ${errors.length} errors.`,
+        target_roles: ['admin'],
+        severity: errors.length > 0 ? 'warning' : 'info',
         sent_count: results.length,
-        failed_count: errors.length,
-        status: errors.length === 0 ? 'completed' : 'completed_with_errors',
-        completed_at: new Date().toISOString(),
-        metadata: { style, provider: process.env.COPYWRITER_PROVIDER || 'openai' }
       })
     }
 

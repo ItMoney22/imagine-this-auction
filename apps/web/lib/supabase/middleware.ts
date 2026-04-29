@@ -1,6 +1,34 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+const PUBLIC_EXACT_ROUTES = new Set([
+  '/',
+  '/login',
+  '/signup',
+  '/how-it-works',
+  '/auth/callback',
+  '/api/health',
+])
+
+const PUBLIC_PREFIX_ROUTES = ['/auctions', '/lots', '/api/webhooks']
+const PROTECTED_PREFIX_ROUTES = [
+  '/admin',
+  '/org',
+  '/dashboard',
+  '/wallet',
+  '/invoices',
+  '/settings',
+]
+
+const isStaticAsset = (pathname: string) =>
+  pathname.startsWith('/_next') ||
+  pathname.startsWith('/static') ||
+  pathname === '/favicon.ico' ||
+  /\.(?:svg|png|jpg|jpeg|gif|webp|ico)$/i.test(pathname)
+
+const matchesPrefix = (pathname: string, prefixes: string[]) =>
+  prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -29,47 +57,30 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
-  // Define public routes that don't require authentication
-  const publicRoutes = [
-    '/',
-    '/login',
-    '/signup',
-    '/auth/callback',
-    '/api/health',
-    '/auctions',
-    '/lots'
-  ]
-
-  // Check if current path is public (including dynamic routes like /auctions/[id])
-  const isPublicRoute = publicRoutes.some(route => {
-    if (route === pathname) return true
-    if (route === '/auctions' && pathname.startsWith('/auctions/')) return true
-    if (route === '/lots' && pathname.startsWith('/lots/')) return true
-    return false
-  })
-
-  // Skip auth check for public routes
-  if (isPublicRoute) {
+  if (isStaticAsset(pathname)) {
     return supabaseResponse
   }
 
-  // This will refresh session if expired - required for Server Components
-  // https://supabase.com/docs/guides/auth/server-side/nextjs
+  const isPublicRoute =
+    PUBLIC_EXACT_ROUTES.has(pathname) || matchesPrefix(pathname, PUBLIC_PREFIX_ROUTES)
+  const isProtectedRoute = matchesPrefix(pathname, PROTECTED_PREFIX_ROUTES)
+
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // If user is logged in and trying to access login/signup, redirect to home
   if (user && (pathname === '/login' || pathname === '/signup')) {
     return NextResponse.redirect(new URL('/', request.url))
   }
 
-  // Protected routes - redirect to login if not authenticated
-  const protectedRoutes = ['/admin', '/org', '/dashboard', '/wallet', '/invoices']
-  const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route))
-
   if (isProtectedRoute && !user) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    const redirectUrl = new URL('/login', request.url)
+    redirectUrl.searchParams.set('redirectedFrom', pathname)
+    return NextResponse.redirect(redirectUrl)
+  }
+
+  if (isPublicRoute || !isProtectedRoute) {
+    return supabaseResponse
   }
 
   return supabaseResponse

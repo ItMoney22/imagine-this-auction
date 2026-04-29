@@ -197,6 +197,15 @@ Unsubscribe: ${data.unsubscribe_url}
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
     const body = await request.json()
     const { batch_id, user_id, limit, dry_run } = BatchRequestSchema.parse(body)
 

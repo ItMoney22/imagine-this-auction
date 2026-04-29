@@ -6,7 +6,11 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Search, X } from 'lucide-react'
 
-export function SearchBar() {
+interface SearchBarProps {
+  placeholder?: string
+}
+
+export function SearchBar({ placeholder = 'Search auctions...' }: SearchBarProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '')
@@ -21,14 +25,14 @@ export function SearchBar() {
       params.delete('search')
     }
 
-    router.push(`/auctions?${params.toString()}`)
+    router.push(`/lots?${params.toString()}`)
   }
 
   const clearSearch = () => {
     setSearchQuery('')
     const params = new URLSearchParams(searchParams.toString())
     params.delete('search')
-    router.push(`/auctions?${params.toString()}`)
+    router.push(`/lots?${params.toString()}`)
   }
 
   return (
@@ -37,7 +41,7 @@ export function SearchBar() {
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
         <Input
           type="text"
-          placeholder="Search auctions..."
+          placeholder={placeholder}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10 pr-16"

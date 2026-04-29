@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -137,6 +138,11 @@ export function AuthForm({ mode, redirectTo }: AuthFormProps) {
               Magic Link
             </button>
           </div>
+          <p className="mt-3 text-sm text-gray-600">
+            {authMode === 'password'
+              ? 'Sign in with your password. Minimum 6 characters.'
+              : 'Get a one-time login link emailed to you.'}
+          </p>
         </div>
 
         {authMode === 'password' ? (
@@ -168,10 +174,19 @@ export function AuthForm({ mode, redirectTo }: AuthFormProps) {
                 placeholder="Enter your password"
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
+              <p className="mt-1 text-xs text-gray-500">Minimum 6 characters</p>
               {passwordForm.formState.errors.password && (
                 <p className="mt-1 text-sm text-red-600">{passwordForm.formState.errors.password.message}</p>
               )}
             </div>
+
+            {mode === 'login' && (
+              <div className="text-right">
+                <Link href="/forgot-password" className="text-sm font-medium text-blue-600 hover:text-blue-500">
+                  Forgot password?
+                </Link>
+              </div>
+            )}
 
             <button
               type="submit"

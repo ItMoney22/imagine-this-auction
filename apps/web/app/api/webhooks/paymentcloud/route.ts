@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     }
 
     const signature = request.headers.get('x-paymentcloud-signature')
-    if (WEBHOOK_SECRET && signature !== WEBHOOK_SECRET) {
+    if (!WEBHOOK_SECRET || signature !== WEBHOOK_SECRET) {
       return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 })
     }
 

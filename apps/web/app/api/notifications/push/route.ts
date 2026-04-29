@@ -36,6 +36,14 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
     const url = new URL(request.url)
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
 
     // Handle subscription endpoint
     if (url.pathname.endsWith('/subscribe')) {

@@ -119,12 +119,51 @@ export async function getAuctioneerDashboard(
     recentPayouts: [...emptyDashboard.recentPayouts],
   }
 
-  const { data: auctions, error: auctionsError } = await client
-    .from('auctions')
-    .select('id, title, status, starts_at, ends_at')
-    .eq('auctioneer_id', auctioneerId)
-    .order('starts_at', { ascending: true })
-    .returns<AuctionRow[]>()
+  const [auctionsResult, payoutsResult, fulfillmentResult] = await Promise.all([
+    client
+      .from('auctions')
+      .select('id, title, status, starts_at, ends_at')
+      .eq('auctioneer_id', auctioneerId)
+      .order('starts_at', { ascending: true })
+      .returns<AuctionRow[]>(),
+    client
+      .from('payouts_due')
+      .select('id, amount, is_paid, created_at, paid_at, payment_reference')
+      .eq('auctioneer_id', auctioneerId)
+      .order('created_at', { ascending: false })
+      .limit(10)
+      .returns<PayoutRow[]>(),
+    client
+      .from('invoices')
+      .select(`
+        id,
+        total_amount,
+        created_at,
+        tracking_number,
+        lot:lots!inner(
+          lot_number,
+          title,
+          auction:auctions!inner(
+            title,
+            ends_at,
+            auctioneer_id
+          )
+        ),
+        buyer:users!buyer_id(
+          first_name,
+          last_name,
+          email
+        )
+      `)
+      .eq('is_paid', true)
+      .eq('is_shipped', false)
+      .eq('lot.auction.auctioneer_id', auctioneerId)
+      .order('created_at', { ascending: false })
+      .limit(5)
+      .returns<FulfillmentRow[]>(),
+  ])
+
+  const { data: auctions, error: auctionsError } = auctionsResult
 
   if (auctionsError) {
     console.error('Failed to load auctioneer auctions:', auctionsError)
@@ -171,13 +210,7 @@ export async function getAuctioneerDashboard(
       lotCount: lotsPerAuction[auction.id] || 0,
     }))
 
-  const { data: payouts, error: payoutsError } = await client
-    .from('payouts_due')
-    .select('id, amount, is_paid, created_at, paid_at, payment_reference')
-    .eq('auctioneer_id', auctioneerId)
-    .order('created_at', { ascending: false })
-    .limit(10)
-    .returns<PayoutRow[]>()
+  const { data: payouts, error: payoutsError } = payoutsResult
 
   if (!payoutsError && payouts) {
     dashboard.metrics.pendingPayoutCents = payouts
@@ -200,34 +233,7 @@ export async function getAuctioneerDashboard(
     console.error('Failed to load payout data for auctioneer dashboard:', payoutsError)
   }
 
-  const { data: fulfillment, error: fulfillmentError } = await client
-    .from('invoices')
-    .select(`
-      id,
-      total_amount,
-      created_at,
-      tracking_number,
-      lot:lots!inner(
-        lot_number,
-        title,
-        auction:auctions!inner(
-          title,
-          ends_at,
-          auctioneer_id
-        )
-      ),
-      buyer:users!buyer_id(
-        first_name,
-        last_name,
-        email
-      )
-    `)
-    .eq('is_paid', true)
-    .eq('is_shipped', false)
-    .eq('lot.auction.auctioneer_id', auctioneerId)
-    .order('created_at', { ascending: false })
-    .limit(5)
-    .returns<FulfillmentRow[]>()
+  const { data: fulfillment, error: fulfillmentError } = fulfillmentResult
 
   if (!fulfillmentError && fulfillment) {
     dashboard.fulfillmentQueue = fulfillment.map((invoice) => ({

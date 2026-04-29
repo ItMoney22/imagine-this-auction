@@ -28,24 +28,31 @@ interface BiddingPanelProps {
   auction: any
   user: any
   walletBalance: number
-  currentBids: any[]
+  bids: any[]
+  auctionEndTime: string
+  onBidPlaced: (bid: any) => void
 }
 
-export function BiddingPanel({ lot, auction, user, walletBalance, currentBids }: BiddingPanelProps) {
+export function BiddingPanel({
+  lot,
+  auction,
+  user,
+  walletBalance,
+  bids,
+  auctionEndTime,
+  onBidPlaced,
+}: BiddingPanelProps) {
   const router = useRouter()
   const supabase = createClient()
   const { toast } = useToast()
 
   const [timeRemaining, setTimeRemaining] = useState('')
   const [currentHigh, setCurrentHigh] = useState(0)
-  const [bidAmount, setBidAmount] = useState('')
   const [maxBidAmount, setMaxBidAmount] = useState('')
   const [isWatching, setIsWatching] = useState(false)
   const [emailNotifications, setEmailNotifications] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [bids, setBids] = useState(currentBids)
-  const [auctionEndTime, setAuctionEndTime] = useState(new Date(auction.ends_at))
-  const timerRef = useRef<NodeJS.Timeout>()
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Calculate current high bid - use lot.current_high_bid as source of truth
   useEffect(() => {
@@ -64,7 +71,7 @@ export function BiddingPanel({ lot, auction, user, walletBalance, currentBids }:
   // Timer updates
   useEffect(() => {
     const updateTimer = () => {
-      setTimeRemaining(formatTimeRemaining(auctionEndTime))
+      setTimeRemaining(formatTimeRemaining(new Date(auctionEndTime)))
     }
 
     updateTimer()
@@ -76,83 +83,6 @@ export function BiddingPanel({ lot, auction, user, walletBalance, currentBids }:
       }
     }
   }, [auctionEndTime])
-
-  // Real-time subscription for bids
-  useEffect(() => {
-    if (!user) return
-
-    const channel = supabase
-      .channel(`lot_${lot.id}_bids`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'bids',
-          filter: `lot_id=eq.${lot.id}`
-        },
-        async (payload) => {
-          const newBid = payload.new
-
-          // Fetch user info for the new bid (bids table uses bidder_id)
-          const { data: bidUser } = await supabase
-            .from('users')
-            .select('first_name, last_name, email')
-            .eq('id', newBid.bidder_id)
-            .single()
-
-          const bidWithUser = {
-            ...newBid,
-            users: bidUser
-          }
-
-          setBids(prev => [bidWithUser, ...prev])
-
-          // Show toast notifications (bids table uses bidder_id and amount)
-          if (newBid.bidder_id === user.id) {
-            toast({
-              title: "Bid Placed Successfully!",
-              description: `You are now the high bidder at ${formatCurrency(newBid.amount)}`,
-              variant: "default"
-            })
-          } else {
-            // Check if user was previously high bidder
-            const wasHighBidder = bids.length > 0 &&
-              bids[0].bidder_id === user.id
-
-            if (wasHighBidder) {
-              toast({
-                title: "You've been outbid!",
-                description: `New high bid: ${formatCurrency(newBid.amount)}`,
-                variant: "destructive"
-              })
-            }
-          }
-
-          // Handle anti-sniping
-          const now = new Date()
-          const endTime = new Date(auctionEndTime)
-          const timeDiff = endTime.getTime() - now.getTime()
-          const antiSnipingMs = auction.anti_sniping_seconds * 1000
-
-          if (timeDiff > 0 && timeDiff <= antiSnipingMs) {
-            const newEndTime = new Date(now.getTime() + antiSnipingMs)
-            setAuctionEndTime(newEndTime)
-
-            toast({
-              title: "Auction Extended!",
-              description: `Timer extended to ${newEndTime.toLocaleTimeString()}`,
-              variant: "default"
-            })
-          }
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [lot.id, user, bids, auctionEndTime, auction.anti_sniping_seconds, supabase, toast])
 
   const getNextBidAmount = () => {
     return currentHigh + lot.increment
@@ -183,9 +113,9 @@ export function BiddingPanel({ lot, auction, user, walletBalance, currentBids }:
     setLoading(true)
     try {
       const { data, error } = await supabase.rpc('place_bid', {
-        p_lot_id: lot.id,
-        p_user_id: user.id,
-        p_amount: amount
+        lot_uuid: lot.id,
+        bidder_uuid: user.id,
+        bid_amount: amount
       })
 
       if (error) throw error
@@ -208,8 +138,7 @@ export function BiddingPanel({ lot, auction, user, walletBalance, currentBids }:
           email: user.email
         }
       }
-      setBids(prev => [newBid, ...prev])
-      setCurrentHigh(amount)
+      onBidPlaced(newBid)
 
       // Show success toast
       toast({
@@ -219,7 +148,6 @@ export function BiddingPanel({ lot, auction, user, walletBalance, currentBids }:
       })
 
       // Clear bid input
-      setBidAmount('')
       setMaxBidAmount('')
 
     } catch (error) {

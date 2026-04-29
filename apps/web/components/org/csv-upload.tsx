@@ -18,9 +18,9 @@ interface CsvRow {
   title: string
   description: string
   image_urls: string
-  start_price_itc: string
-  bid_increment_itc: string
-  reserve_price_itc?: string
+  starting_bid: string
+  increment: string
+  reserve_price?: string
   category?: string
 }
 
@@ -55,24 +55,20 @@ export function CsvUpload({ auction, onImport, onCancel }: CsvUploadProps) {
       errors.push({ row: index, field: 'description', message: 'Description is required' })
     }
 
-    const startPrice = parseInt(row.start_price_itc)
+    const startPrice = parseInt(row.starting_bid)
     if (!startPrice || startPrice < 1) {
-      errors.push({ row: index, field: 'start_price_itc', message: 'Start price must be a positive number' })
+      errors.push({ row: index, field: 'starting_bid', message: 'Start price must be a positive number' })
     }
 
-    const bidIncrement = parseInt(row.bid_increment_itc)
+    const bidIncrement = parseInt(row.increment)
     if (!bidIncrement || bidIncrement < 1) {
-      errors.push({ row: index, field: 'bid_increment_itc', message: 'Bid increment must be a positive number' })
+      errors.push({ row: index, field: 'increment', message: 'Bid increment must be a positive number' })
     }
 
-    if (row.reserve_price_itc && !auction.reserve_allowed) {
-      errors.push({ row: index, field: 'reserve_price_itc', message: 'Reserve prices not allowed for this auction' })
-    }
-
-    if (row.reserve_price_itc) {
-      const reservePrice = parseInt(row.reserve_price_itc)
+    if (row.reserve_price) {
+      const reservePrice = parseInt(row.reserve_price)
       if (!reservePrice || reservePrice < 1) {
-        errors.push({ row: index, field: 'reserve_price_itc', message: 'Reserve price must be a positive number' })
+        errors.push({ row: index, field: 'reserve_price', message: 'Reserve price must be a positive number' })
       }
     }
 
@@ -86,7 +82,7 @@ export function CsvUpload({ auction, onImport, onCancel }: CsvUploadProps) {
     }
 
     const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''))
-    const requiredHeaders = ['title', 'description', 'image_urls', 'start_price_itc', 'bid_increment_itc']
+    const requiredHeaders = ['title', 'description', 'image_urls', 'starting_bid', 'increment']
 
     for (const required of requiredHeaders) {
       if (!headers.includes(required)) {
@@ -172,9 +168,9 @@ export function CsvUpload({ auction, onImport, onCancel }: CsvUploadProps) {
         title: lot.title,
         description: lot.description,
         images: lot.image_urls ? lot.image_urls.split(',').map(url => url.trim()) : [],
-        start_price_itc: parseInt(lot.start_price_itc),
-        bid_increment_itc: parseInt(lot.bid_increment_itc),
-        reserve_price_itc: lot.reserve_price_itc ? parseInt(lot.reserve_price_itc) : null,
+        starting_bid: parseInt(lot.starting_bid),
+        increment: parseInt(lot.increment),
+        reserve_price: lot.reserve_price ? parseInt(lot.reserve_price) : null,
         category: lot.category || null,
         status: 'draft' as const,
       }))
@@ -208,7 +204,7 @@ export function CsvUpload({ auction, onImport, onCancel }: CsvUploadProps) {
   }
 
   const downloadSample = () => {
-    const sampleCsv = `title,description,image_urls,start_price_itc,bid_increment_itc,reserve_price_itc,category
+    const sampleCsv = `title,description,image_urls,starting_bid,increment,reserve_price,category
 "Antique Oak Table","Beautiful solid oak dining table from 1920s","https://example.com/table1.jpg,https://example.com/table2.jpg",100,10,150,"Furniture"
 "Vintage Pocket Watch","Gold plated pocket watch in working condition","https://example.com/watch.jpg",50,5,,"Collectibles"
 "Oil Painting Landscape","Original oil painting 24x18 inches","https://example.com/painting.jpg",200,25,300,"Art"`
@@ -247,9 +243,9 @@ export function CsvUpload({ auction, onImport, onCancel }: CsvUploadProps) {
             <li>• <strong>title</strong>: Lot title (required)</li>
             <li>• <strong>description</strong>: Lot description (required)</li>
             <li>• <strong>image_urls</strong>: Comma-separated image URLs</li>
-            <li>• <strong>start_price_itc</strong>: Starting price in ITC (required)</li>
-            <li>• <strong>bid_increment_itc</strong>: Bid increment in ITC (required)</li>
-            <li>• <strong>reserve_price_itc</strong>: Reserve price in ITC (optional)</li>
+            <li>• <strong>starting_bid</strong>: Starting price in cents (required)</li>
+            <li>• <strong>increment</strong>: Bid increment in cents (required)</li>
+            <li>• <strong>reserve_price</strong>: Reserve price in cents (optional)</li>
             <li>• <strong>category</strong>: Category name (optional)</li>
           </ul>
         </div>
@@ -311,7 +307,7 @@ export function CsvUpload({ auction, onImport, onCancel }: CsvUploadProps) {
                 <tr key={lot.rowIndex} className={lot.isValid ? 'bg-green-50' : 'bg-red-50'}>
                   <td className="px-3 py-2">{lot.rowIndex}</td>
                   <td className="px-3 py-2 truncate max-w-32">{lot.title}</td>
-                  <td className="px-3 py-2">{lot.start_price_itc}</td>
+                  <td className="px-3 py-2">{lot.starting_bid}</td>
                   <td className="px-3 py-2">
                     {lot.isValid ? (
                       <div className="flex items-center text-green-600">

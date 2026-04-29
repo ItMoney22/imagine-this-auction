@@ -1,6 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { assertAdminOrThrow, createServiceRoleClient } from '@/lib/api/admin-auth'
 
+export async function PUT(request: NextRequest) {
+  try {
+    const { user } = await assertAdminOrThrow(request)
+    const supabase = createServiceRoleClient()
+    const { document_id, verification_status, verification_notes } = await request.json()
+
+    if (!document_id || !verification_status) {
+      return NextResponse.json(
+        { error: 'document_id and verification_status are required' },
+        { status: 400 }
+      )
+    }
+
+    if (!['approved', 'rejected'].includes(verification_status)) {
+      return NextResponse.json(
+        { error: 'Invalid verification status' },
+        { status: 400 }
+      )
+    }
+
+    const { data: document, error } = await supabase
+      .from('user_documents')
+      .update({
+        verification_status,
+        verification_notes: verification_notes || null,
+        verified_by: user.id,
+        verified_at: new Date().toISOString(),
+      })
+      .eq('id', document_id)
+      .select('*')
+      .single()
+
+    if (error || !document) {
+      return NextResponse.json(
+        { error: 'Failed to update document status' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true, document })
+  } catch (error) {
+    console.error('Admin KYC document update error:', error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Verify admin authentication

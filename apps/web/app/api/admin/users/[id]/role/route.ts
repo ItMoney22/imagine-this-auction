@@ -27,45 +27,41 @@ export async function PUT(
 
     const { new_role, notes } = validation.data
 
-    // TEMPORARY: Skip auth for development
-    // Check authentication and admin role
-    // const {
-    //   data: { user },
-    //   error: authError,
-    // } = await supabase.auth.getUser()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
 
-    // if (authError || !user) {
-    //   return NextResponse.json(
-    //     { error: 'Authentication required' },
-    //     { status: 401 }
-    //   )
-    // }
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
 
-    // const { data: adminUser, error: adminError } = await supabase
-    //   .from('users')
-    //   .select('role')
-    //   .eq('id', user.id)
-    //   .single()
+    const { data: adminUser, error: adminError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single()
 
-    // if (adminError || !adminUser || adminUser.role !== 'admin') {
-    //   return NextResponse.json(
-    //     { error: 'Admin access required' },
-    //     { status: 403 }
-    //   )
-    // }
+    if (adminError || !adminUser || adminUser.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Admin access required' },
+        { status: 403 }
+      )
+    }
 
-    // Prevent self-role change from admin (commented out for development)
-    // if (user.id === params.id && new_role !== 'admin') {
-    //   return NextResponse.json(
-    //     { error: 'Cannot remove admin role from yourself' },
-    //     { status: 400 }
-    //   )
-    // }
+    if (user.id === id && new_role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Cannot remove admin role from yourself' },
+        { status: 400 }
+      )
+    }
 
-    // Call the database function to change role (using dummy admin ID for development)
     const { data: result, error: roleError } = await supabase
       .rpc('change_user_role', {
-        p_admin_id: 'dev-admin-id', // dummy admin ID for development
+        p_admin_id: user.id,
         p_target_user_id: id,
         p_new_role: new_role,
         p_notes: notes || null,

@@ -37,6 +37,7 @@ export default function InvoiceManager() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchInvoices()
@@ -79,6 +80,8 @@ export default function InvoiceManager() {
       currency: 'USD',
     }).format(amount / 100)
   }
+
+  const selectedInvoice = invoices.find((invoice) => invoice.id === selectedInvoiceId) || null
 
   if (loading) {
     return (
@@ -128,6 +131,31 @@ export default function InvoiceManager() {
       {/* Invoices List */}
       <Card>
         <CardContent>
+          {selectedInvoice && (
+            <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Invoice Details</h3>
+                <Button variant="outline" size="sm" onClick={() => setSelectedInvoiceId(null)}>
+                  Close
+                </Button>
+              </div>
+              <div className="grid grid-cols-1 gap-3 text-sm text-gray-700 md:grid-cols-2">
+                <p><strong>Invoice ID:</strong> {selectedInvoice.id}</p>
+                <p><strong>Created:</strong> {new Date(selectedInvoice.created_at).toLocaleString()}</p>
+                <p><strong>Buyer:</strong> {selectedInvoice.buyer.first_name} {selectedInvoice.buyer.last_name} ({selectedInvoice.buyer.email})</p>
+                <p><strong>Status:</strong> {selectedInvoice.is_shipped ? 'Shipped' : selectedInvoice.is_paid ? 'In Escrow' : 'Unpaid'}</p>
+                <p><strong>Lot:</strong> #{selectedInvoice.lot.lot_number} {selectedInvoice.lot.title}</p>
+                <p><strong>Auction:</strong> {selectedInvoice.lot.auction.title}</p>
+                <p><strong>Auctioneer:</strong> {selectedInvoice.lot.auction.auctioneer.company_name}</p>
+                <p><strong>Total:</strong> {formatCurrency(selectedInvoice.total_amount)}</p>
+                <p><strong>Hammer Price:</strong> {formatCurrency(selectedInvoice.hammer_price)}</p>
+                <p><strong>Buyer Premium:</strong> {formatCurrency(selectedInvoice.buyer_premium_amount)}</p>
+                <p><strong>Tracking Number:</strong> {selectedInvoice.tracking_number || 'Not provided'}</p>
+                <p><strong>Shipped At:</strong> {selectedInvoice.shipped_at ? new Date(selectedInvoice.shipped_at).toLocaleString() : 'Not shipped'}</p>
+              </div>
+            </div>
+          )}
+
           {invoices.length === 0 ? (
             <div className="py-8 text-center">
               <p className="text-gray-600">No invoices found</p>
@@ -184,12 +212,7 @@ export default function InvoiceManager() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        // TODO: Open invoice detail modal
-                        if (process.env.NODE_ENV === 'development') {
-                          console.log('View invoice details:', invoice.id)
-                        }
-                      }}
+                      onClick={() => setSelectedInvoiceId(invoice.id)}
                     >
                       View Details
                     </Button>

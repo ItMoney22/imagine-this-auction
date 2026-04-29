@@ -2,28 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 import { NextRequest } from 'next/server'
 
 export async function assertAdminOrThrow(req: NextRequest): Promise<{ user: any; supabase: any }> {
-  // For development/demo: skip auth validation and use service role client
-  const isDevelopment = process.env.NODE_ENV !== 'production'
-
-  if (isDevelopment) {
-    console.log('Development mode: skipping admin auth validation')
-    const serviceRoleClient = createServiceRoleClient()
-
-    // Return mock admin user for development
-    const mockAdminUser = {
-      id: 'demo-admin-user',
-      email: 'admin@example.com',
-      role: 'admin'
-    }
-
-    return { user: mockAdminUser, supabase: serviceRoleClient }
-  }
-
-  // Production auth logic (commented out for now)
-  const supabase = createClient()
+  const supabase = await createClient()
 
   try {
-    // Get current user session
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError) {
@@ -36,7 +17,6 @@ export async function assertAdminOrThrow(req: NextRequest): Promise<{ user: any;
       throw new Error('No authenticated user found')
     }
 
-    // Check if user has admin role
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('role, email, id')

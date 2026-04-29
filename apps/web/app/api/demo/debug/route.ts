@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server'
 import { DEMO } from '@/config/demo'
 
 export async function GET() {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not available in production' }, { status: 403 })
+  }
+
   return NextResponse.json({
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_DEMO_MODE: process.env.NEXT_PUBLIC_DEMO_MODE,

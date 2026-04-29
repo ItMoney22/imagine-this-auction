@@ -10,6 +10,10 @@ import { DEMO } from '@/config/demo'
  */
 
 export async function GET() {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not available in production' }, { status: 403 })
+  }
+
   if (!DEMO.ENABLED) {
     console.error('Demo summary requested but demo mode disabled', {
       NODE_ENV: process.env.NODE_ENV,
@@ -166,10 +170,7 @@ export async function GET() {
           acc[a.status] = (acc[a.status] || 0) + 1
           return acc
         }, {} as Record<string, number>),
-        lots: lots.reduce((acc, l) => {
-          acc[l.status] = (acc[l.status] || 0) + 1
-          return acc
-        }, {} as Record<string, number>)
+        lots: { total: lots.length }
       },
       financial: {
         total_bids: bids.length,

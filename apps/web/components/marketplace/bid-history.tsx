@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils'
 import { History, TrendingUp, User, Crown } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 
 interface BidHistoryProps {
   lot: any
@@ -14,59 +13,8 @@ interface BidHistoryProps {
 }
 
 export function BidHistory({ lot, bids: initialBids, currentUser }: BidHistoryProps) {
-  const [bids, setBids] = useState(initialBids)
+  const bids = initialBids
   const [visibleCount, setVisibleCount] = useState(10)
-  const supabase = createClient()
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const prevBidsLength = useRef(bids.length)
-
-  // Real-time subscription for new bids
-  useEffect(() => {
-    const channel = supabase
-      .channel(`lot_${lot.id}_bids_history`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'bids',
-          filter: `lot_id=eq.${lot.id}`
-        },
-        async (payload) => {
-          const newBid = payload.new
-
-          // Fetch user info for the new bid
-          const { data: bidUser } = await supabase
-            .from('users')
-            .select('first_name, last_name, email')
-            .eq('id', newBid.bidder_id)
-            .single()
-
-          const bidWithUser = {
-            ...newBid,
-            users: bidUser
-          }
-
-          setBids(prev => [bidWithUser, ...prev])
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [lot.id, supabase])
-
-  // Auto-scroll to top when new bids arrive
-  useEffect(() => {
-    if (bids.length > prevBidsLength.current && scrollRef.current) {
-      scrollRef.current.scrollTo({
-        top: 0,
-        behavior: 'smooth'
-      })
-    }
-    prevBidsLength.current = bids.length
-  }, [bids.length])
 
   const getDisplayName = (bid: any) => {
     if (!bid.users) return 'Anonymous'
@@ -110,7 +58,6 @@ export function BidHistory({ lot, bids: initialBids, currentUser }: BidHistoryPr
           <div className="space-y-4">
             {/* Bid ladder */}
             <div
-              ref={scrollRef}
               className="max-h-96 overflow-y-auto space-y-2"
               aria-label="Bid history list"
               role="log"

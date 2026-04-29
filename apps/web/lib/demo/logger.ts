@@ -8,11 +8,19 @@
 import { DEMO, generateDemoRunId } from '@/config/demo'
 import { createClient } from '@supabase/supabase-js'
 
-// Environment setup
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+// Lazy Supabase client - only initialized when demo mode is active
+let _supabase: ReturnType<typeof createClient> | null = null
+const supabase = new Proxy({} as ReturnType<typeof createClient>, {
+  get(_target, prop) {
+    if (!_supabase) {
+      _supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      )
+    }
+    return (_supabase as any)[prop]
+  }
+})
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'critical'
 
@@ -298,53 +306,103 @@ class DemoLogger {
       const startTime = this.getStartTime()
       const uptime = startTime ? now - startTime.getTime() : 0
 
-      // Get active lots count
-      const { count: activeLots } = await supabase
-        .from('lots')
-        .select('*', { count: 'exact', head: true })
-        .eq('demo_label', DEMO.DEMO_LABEL)
-        .eq('status', 'live')
-
-      // Get active bots count
-      const { count: activeBots } = await supabase
+      const { data: demoUsers, error: demoUsersError } = await supabase
         .from('users')
-        .select('*', { count: 'exact', head: true })
-        .eq('demo_label', DEMO.DEMO_LABEL)
-        .not('metadata->>is_bot', 'is', null)
+        .select('id, email, created_at')
+        .or('email.ilike.%demo%,email.ilike.%bot%')
 
-      // Get total bids
-      const { count: totalBids } = await supabase
-        .from('bids')
-        .select('*', { count: 'exact', head: true })
-        .eq('demo_label', DEMO.DEMO_LABEL)
+      if (demoUsersError) {
+        throw demoUsersError
+      }
 
-      // Calculate bid rate (last 5 minutes)
+      const demoUserIds = demoUsers?.map((user) => user.id) || []
+      const botUserIds = demoUsers
+        ?.filter((user) => user.email?.toLowerCase().includes('bot'))
+        .map((user) => user.id) || []
+
+      const { data: demoAuctioneers, error: auctioneersError } = await supabase
+        .from('auctioneers')
+        .select('id, user_id')
+        .in('user_id', demoUserIds.length > 0 ? demoUserIds : ['00000000-0000-0000-0000-000000000000'])
+
+      if (auctioneersError) {
+        throw auctioneersError
+      }
+
+      const demoAuctioneerIds = demoAuctioneers?.map((auctioneer) => auctioneer.id) || []
+
+      const { data: demoAuctions, error: auctionsError } = await supabase
+        .from('auctions')
+        .select('id')
+        .in(
+          'auctioneer_id',
+          demoAuctioneerIds.length > 0 ? demoAuctioneerIds : ['00000000-0000-0000-0000-000000000000']
+        )
+
+      if (auctionsError) {
+        throw auctionsError
+      }
+
+      const demoAuctionIds = demoAuctions?.map((auction) => auction.id) || []
+
+      const [activeLotsResult, totalBidsResult] = await Promise.all([
+        supabase
+          .from('lots')
+          .select('id, auction_id, is_sold, created_at', { count: 'exact' })
+          .in(
+            'auction_id',
+            demoAuctionIds.length > 0 ? demoAuctionIds : ['00000000-0000-0000-0000-000000000000']
+          )
+          .eq('is_sold', false),
+        supabase
+          .from('bids')
+          .select('id, bidder_id, created_at', { count: 'exact' })
+          .in('bidder_id', demoUserIds.length > 0 ? demoUserIds : ['00000000-0000-0000-0000-000000000000']),
+      ])
+
+      if (activeLotsResult.error) {
+        throw activeLotsResult.error
+      }
+
+      if (totalBidsResult.error) {
+        throw totalBidsResult.error
+      }
+
+      const activeLots = activeLotsResult.count || 0
+      const totalBids = totalBidsResult.count || 0
+      const activeBots = botUserIds.length
+
       const fiveMinutesAgo = new Date(now - 5 * 60 * 1000).toISOString()
-      const { count: recentBids } = await supabase
+      const { count: recentBids, error: recentBidsError } = await supabase
         .from('bids')
-        .select('*', { count: 'exact', head: true })
-        .eq('demo_label', DEMO.DEMO_LABEL)
+        .select('id', { count: 'exact', head: true })
+        .in('bidder_id', demoUserIds.length > 0 ? demoUserIds : ['00000000-0000-0000-0000-000000000000'])
         .gte('created_at', fiveMinutesAgo)
 
-      const bidRatePerMinute = recentBids ? (recentBids / 5) : 0
+      if (recentBidsError) {
+        throw recentBidsError
+      }
 
-      // Get average lot duration
-      const { data: completedLots } = await supabase
+      const bidRatePerMinute = recentBids ? recentBids / 5 : 0
+
+      const { data: recentLots, error: recentLotsError } = await supabase
         .from('lots')
-        .select('lot_starts_at, ended_at')
-        .eq('demo_label', DEMO.DEMO_LABEL)
-        .eq('status', 'ended')
-        .not('lot_starts_at', 'is', null)
-        .not('ended_at', 'is', null)
+        .select('id, auction_id, is_sold, created_at')
+        .in(
+          'auction_id',
+          demoAuctionIds.length > 0 ? demoAuctionIds : ['00000000-0000-0000-0000-000000000000']
+        )
+        .eq('is_sold', true)
+        .order('created_at', { ascending: false })
         .limit(10)
 
-      let avgLotDuration = DEMO.LOT_DURATION_SEC * 1000 // Default
-      if (completedLots && completedLots.length > 0) {
-        const durations = completedLots.map(lot => {
-          const start = new Date(lot.lot_starts_at!).getTime()
-          const end = new Date(lot.ended_at!).getTime()
-          return end - start
-        })
+      if (recentLotsError) {
+        throw recentLotsError
+      }
+
+      let avgLotDuration = DEMO.LOT_DURATION_SEC * 1000
+      if (recentLots && recentLots.length > 0) {
+        const durations = recentLots.map((lot) => now - new Date(lot.created_at).getTime())
         avgLotDuration = durations.reduce((a, b) => a + b, 0) / durations.length
       }
 

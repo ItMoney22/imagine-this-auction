@@ -27,37 +27,34 @@ export async function PUT(
 
     const { is_approved, notes } = validation.data
 
-    // TEMPORARY: Skip auth for development
-    // Check authentication and admin role
-    // const {
-    //   data: { user },
-    //   error: authError,
-    // } = await supabase.auth.getUser()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
 
-    // if (authError || !user) {
-    //   return NextResponse.json(
-    //     { error: 'Authentication required' },
-    //     { status: 401 }
-    //   )
-    // }
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
 
-    // const { data: adminUser, error: adminError } = await supabase
-    //   .from('users')
-    //   .select('role')
-    //   .eq('id', user.id)
-    //   .single()
+    const { data: adminUser, error: adminError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single()
 
-    // if (adminError || !adminUser || adminUser.role !== 'admin') {
-    //   return NextResponse.json(
-    //     { error: 'Admin access required' },
-    //     { status: 403 }
-    //   )
-    // }
+    if (adminError || !adminUser || adminUser.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Admin access required' },
+        { status: 403 }
+      )
+    }
 
-    // Call the database function to change auctioneer status (using dummy admin ID for development)
     const { data: result, error: statusError } = await supabase
       .rpc('change_auctioneer_status', {
-        p_admin_id: 'dev-admin-id', // dummy admin ID for development
+        p_admin_id: user.id,
         p_auctioneer_id: id,
         p_is_approved: is_approved,
         p_notes: notes || null,

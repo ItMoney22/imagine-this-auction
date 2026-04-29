@@ -81,7 +81,23 @@ export function HypePreview({ lots }: HypePreviewProps) {
       )
     }
 
-    const hype = selectedLot.hype_copy
+    let hype = selectedLot.hype_copy
+    if (typeof hype === 'string') {
+      try {
+        hype = JSON.parse(hype)
+      } catch {
+        hype = null
+      }
+    }
+
+    if (!hype) {
+      return (
+        <div className="text-center py-8 text-gray-500">
+          <Eye className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+          <p>Hype copy is not in a previewable format yet</p>
+        </div>
+      )
+    }
 
     switch (previewMode) {
       case 'email':

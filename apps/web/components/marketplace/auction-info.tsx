@@ -64,13 +64,6 @@ export function AuctionInfo({ auction, lotCount, categories }: AuctionInfoProps)
           </div>
 
           <div className="flex justify-between items-center">
-            <span className="text-gray-600">Reserve Allowed:</span>
-            <Badge variant={auction.reserve_allowed ? "default" : "secondary"}>
-              {auction.reserve_allowed ? "Yes" : "No"}
-            </Badge>
-          </div>
-
-          <div className="flex justify-between items-center">
             <span className="text-gray-600">Anti-Sniping:</span>
             <Badge variant="outline">
               +{auction.anti_sniping_seconds}s
@@ -179,10 +172,10 @@ export function AuctionInfo({ auction, lotCount, categories }: AuctionInfoProps)
 
             <div className="flex items-center">
               <Badge
-                variant={auction.auctioneers?.approved ? "default" : "secondary"}
-                className={auction.auctioneers?.approved ? "bg-green-600" : ""}
+                variant={auction.auctioneers?.is_approved ? "default" : "secondary"}
+                className={auction.auctioneers?.is_approved ? "bg-green-600" : ""}
               >
-                {auction.auctioneers?.approved ? "Verified" : "Pending"}
+                {auction.auctioneers?.is_approved ? "Verified" : "Pending"}
               </Badge>
             </div>
 

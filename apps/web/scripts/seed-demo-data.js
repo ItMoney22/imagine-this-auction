@@ -38,9 +38,27 @@ const IDS = {
     live1: '5c0c6d9b-81b1-4bc0-baca-3aaf645dd404',
     live2: '815d75ac-4f59-4dbc-8b80-45ad788b7713',
     live3: '6f5061ce-7493-41a1-b6b4-3f5cbd481501',
+    live4: 'a1b2c3d4-1111-4aaa-bbbb-100000000001',
+    live5: 'a1b2c3d4-1111-4aaa-bbbb-100000000002',
+    live6: 'a1b2c3d4-1111-4aaa-bbbb-100000000003',
+    live7: 'a1b2c3d4-1111-4aaa-bbbb-100000000004',
+    live8: 'a1b2c3d4-1111-4aaa-bbbb-100000000005',
+    live9: 'a1b2c3d4-1111-4aaa-bbbb-100000000006',
+    live10: 'a1b2c3d4-1111-4aaa-bbbb-100000000007',
+    live11: 'a1b2c3d4-1111-4aaa-bbbb-100000000008',
+    live12: 'a1b2c3d4-1111-4aaa-bbbb-100000000009',
+    live13: 'a1b2c3d4-1111-4aaa-bbbb-100000000010',
+    live14: 'a1b2c3d4-1111-4aaa-bbbb-100000000011',
+    live15: 'a1b2c3d4-1111-4aaa-bbbb-100000000012',
     upcoming1: '9b303a0b-f35a-4cb9-9d2b-494d5fdecb8b',
     upcoming2: 'e98aa0f7-afbb-4ab2-b136-2d3e5d5c33e7',
-    upcoming3: '13b5e05a-818c-44d5-8e33-0f9c761f5b87'
+    upcoming3: '13b5e05a-818c-44d5-8e33-0f9c761f5b87',
+    upcoming4: 'a1b2c3d4-2222-4aaa-bbbb-200000000001',
+    upcoming5: 'a1b2c3d4-2222-4aaa-bbbb-200000000002',
+    upcoming6: 'a1b2c3d4-2222-4aaa-bbbb-200000000003',
+    upcoming7: 'a1b2c3d4-2222-4aaa-bbbb-200000000004',
+    upcoming8: 'a1b2c3d4-2222-4aaa-bbbb-200000000005',
+    upcoming9: 'a1b2c3d4-2222-4aaa-bbbb-200000000006'
   },
   bids: {
     live1_a: '9ad17180-48b7-4c8e-87ce-bf850a8fe029',
@@ -188,6 +206,102 @@ const lotRecords = [
     ]
   },
   {
+    key: 'live4', id: IDS.lots.live4, auctionKey: 'live', lot_number: 4,
+    title: 'Tiffany & Co. Diamond Tennis Bracelet',
+    description: '18k white gold, 5.2 carats total weight, VS clarity, F color. Includes original box and certificate.',
+    starting_bid: 35000, reserve_price: 50000, increment: 2500, category: 'Jewelry',
+    estimate_low: 50000, estimate_high: 75000,
+    images: ['https://images.unsplash.com/photo-1515562141589-67f0d569b47e']
+  },
+  {
+    key: 'live5', id: IDS.lots.live5, auctionKey: 'live', lot_number: 5,
+    title: 'First Edition Hemingway "The Sun Also Rises" (1926)',
+    description: 'First printing with Scribner\'s "A" on copyright page. Dust jacket present with minor edge wear.',
+    starting_bid: 80000, reserve_price: 120000, increment: 5000, category: 'Books & Manuscripts',
+    estimate_low: 120000, estimate_high: 180000,
+    images: ['https://images.unsplash.com/photo-1544947950-fa07a98d237f']
+  },
+  {
+    key: 'live6', id: IDS.lots.live6, auctionKey: 'live', lot_number: 6,
+    title: 'Banksy "Girl with Balloon" Signed Print',
+    description: 'Screen print on paper, edition of 150, signed and numbered. Certificate of authenticity from Pest Control.',
+    starting_bid: 150000, reserve_price: 200000, increment: 10000, category: 'Fine Art',
+    estimate_low: 200000, estimate_high: 350000,
+    images: ['https://images.unsplash.com/photo-1578662996442-48f60103fc96']
+  },
+  {
+    key: 'live7', id: IDS.lots.live7, auctionKey: 'live', lot_number: 7,
+    title: 'Vintage Gibson Les Paul Standard (1959 Reissue)',
+    description: 'Custom Shop Historic Collection, flame maple top, original hardshell case. Played sparingly.',
+    starting_bid: 15000, reserve_price: null, increment: 1000, category: 'Musical Instruments',
+    estimate_low: 20000, estimate_high: 30000,
+    images: ['https://images.unsplash.com/photo-1510915361894-db8b60106cb1']
+  },
+  {
+    key: 'live8', id: IDS.lots.live8, auctionKey: 'live', lot_number: 8,
+    title: 'Persian Silk Tabriz Rug (9x12)',
+    description: 'Hand-knotted pure silk, approximately 400 knots per square inch. Medallion design in ivory and navy.',
+    starting_bid: 25000, reserve_price: 35000, increment: 2000, category: 'Rugs & Textiles',
+    estimate_low: 35000, estimate_high: 55000,
+    images: ['https://images.unsplash.com/photo-1600166898405-da9535204843']
+  },
+  {
+    key: 'live9', id: IDS.lots.live9, auctionKey: 'live', lot_number: 9,
+    title: 'Rolex Daytona Ref. 116500LN (2023)',
+    description: 'White dial, ceramic bezel, Oysterflex bracelet. Full set with box, papers, and warranty card.',
+    starting_bid: 22000, reserve_price: 28000, increment: 1000, category: 'Watches',
+    estimate_low: 28000, estimate_high: 38000,
+    images: ['https://images.unsplash.com/photo-1587836374828-4dbafa94cf0e']
+  },
+  {
+    key: 'live10', id: IDS.lots.live10, auctionKey: 'live', lot_number: 10,
+    title: 'Pair of Louis XVI Gilt Bronze Candelabras',
+    description: 'Late 18th century, five-light arms, marble bases. Height 28 inches. Exceptional patina.',
+    starting_bid: 18000, reserve_price: null, increment: 1500, category: 'Antiques',
+    estimate_low: 22000, estimate_high: 35000,
+    images: ['https://images.unsplash.com/photo-1513519245088-0e12902e5a38']
+  },
+  {
+    key: 'live11', id: IDS.lots.live11, auctionKey: 'live', lot_number: 11,
+    title: 'Château Lafite Rothschild 2000 (Case of 12)',
+    description: 'Original wooden case, perfect provenance, stored professionally. Parker 98+ points.',
+    starting_bid: 45000, reserve_price: 55000, increment: 2500, category: 'Wine & Spirits',
+    estimate_low: 55000, estimate_high: 80000,
+    images: ['https://images.unsplash.com/photo-1474722883778-792e7990302f']
+  },
+  {
+    key: 'live12', id: IDS.lots.live12, auctionKey: 'live', lot_number: 12,
+    title: 'Signed Michael Jordan Game-Worn Jersey (1996)',
+    description: 'Chicago Bulls road jersey, photo-matched to Game 4 of 1996 Finals. PSA/DNA authenticated.',
+    starting_bid: 100000, reserve_price: 150000, increment: 5000, category: 'Sports Memorabilia',
+    estimate_low: 150000, estimate_high: 250000,
+    images: ['https://images.unsplash.com/photo-1546519638-68e109498ffc']
+  },
+  {
+    key: 'live13', id: IDS.lots.live13, auctionKey: 'live', lot_number: 13,
+    title: 'Apple-1 Computer (1976) - Working',
+    description: 'One of approximately 200 produced. Includes original Byte Shop cassette interface. Fully functional.',
+    starting_bid: 200000, reserve_price: 300000, increment: 10000, category: 'Technology & Science',
+    estimate_low: 300000, estimate_high: 500000,
+    images: ['https://images.unsplash.com/photo-1517694712202-14dd9538aa97']
+  },
+  {
+    key: 'live14', id: IDS.lots.live14, auctionKey: 'live', lot_number: 14,
+    title: 'Hermès Birkin 30 in Gold Togo Leather',
+    description: 'Gold hardware, stamp Y (2020). Pristine condition with original receipt, box, dust bag, and lock set.',
+    starting_bid: 12000, reserve_price: 18000, increment: 1000, category: 'Fashion & Accessories',
+    estimate_low: 18000, estimate_high: 25000,
+    images: ['https://images.unsplash.com/photo-1584917865442-de89df76afd3']
+  },
+  {
+    key: 'live15', id: IDS.lots.live15, auctionKey: 'live', lot_number: 15,
+    title: 'Chinese Qing Dynasty Blue & White Vase',
+    description: 'Kangxi period (1662-1722), double gourd form, floral scroll decoration. Height 14.5 inches.',
+    starting_bid: 30000, reserve_price: 45000, increment: 2000, category: 'Asian Art & Ceramics',
+    estimate_low: 45000, estimate_high: 70000,
+    images: ['https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261']
+  },
+  {
     key: 'upcoming1',
     id: IDS.lots.upcoming1,
     auctionKey: 'upcoming',
@@ -237,6 +351,54 @@ const lotRecords = [
     images: [
       'https://images.unsplash.com/photo-1502877338535-766e1452684a'
     ]
+  },
+  {
+    key: 'upcoming4', id: IDS.lots.upcoming4, auctionKey: 'upcoming', lot_number: 4,
+    title: '1961 Ferrari 250 GT Berlinetta',
+    description: 'Matching numbers, Colombo V12, complete history file. Show-quality restoration by marque specialist.',
+    starting_bid: 800000, reserve_price: 1200000, increment: 25000, category: 'Vehicles',
+    estimate_low: 1200000, estimate_high: 1800000,
+    images: ['https://images.unsplash.com/photo-1583121274602-3e2820c69888']
+  },
+  {
+    key: 'upcoming5', id: IDS.lots.upcoming5, auctionKey: 'upcoming', lot_number: 5,
+    title: '1970 Plymouth Barracuda HEMI Convertible',
+    description: 'One of 14 produced. Numbers matching 426 HEMI, 4-speed manual. Broadcast sheet included.',
+    starting_bid: 600000, reserve_price: 900000, increment: 25000, category: 'Vehicles',
+    estimate_low: 900000, estimate_high: 1500000,
+    images: ['https://images.unsplash.com/photo-1494976388531-d1058494cdd8']
+  },
+  {
+    key: 'upcoming6', id: IDS.lots.upcoming6, auctionKey: 'upcoming', lot_number: 6,
+    title: 'Patek Philippe Nautilus Ref. 5711/1A',
+    description: 'Blue dial, stainless steel. Full set with box, papers, and archive extract. Discontinued model.',
+    starting_bid: 80000, reserve_price: 100000, increment: 5000, category: 'Watches',
+    estimate_low: 100000, estimate_high: 150000,
+    images: ['https://images.unsplash.com/photo-1523170335258-f5ed11844a49']
+  },
+  {
+    key: 'upcoming7', id: IDS.lots.upcoming7, auctionKey: 'upcoming', lot_number: 7,
+    title: 'Andy Warhol "Campbell\'s Soup Can" Print',
+    description: 'Screenprint, 1968 edition, signed in pencil. Published by Factory Additions. 35 x 23 inches.',
+    starting_bid: 60000, reserve_price: 80000, increment: 5000, category: 'Fine Art',
+    estimate_low: 80000, estimate_high: 120000,
+    images: ['https://images.unsplash.com/photo-1578301978693-85fa9c0320b9']
+  },
+  {
+    key: 'upcoming8', id: IDS.lots.upcoming8, auctionKey: 'upcoming', lot_number: 8,
+    title: 'Collection of 50 Ancient Roman Coins',
+    description: 'Bronze and silver denarii spanning 1st-4th century AD. All authenticated and catalogued.',
+    starting_bid: 15000, reserve_price: null, increment: 1000, category: 'Coins & Currency',
+    estimate_low: 20000, estimate_high: 35000,
+    images: ['https://images.unsplash.com/photo-1621761191319-c6fb62004040']
+  },
+  {
+    key: 'upcoming9', id: IDS.lots.upcoming9, auctionKey: 'upcoming', lot_number: 9,
+    title: 'Steinway Model D Concert Grand Piano',
+    description: '2019, ebony finish, Hamburg factory. Full concert-scale action, meticulously maintained.',
+    starting_bid: 90000, reserve_price: 120000, increment: 5000, category: 'Musical Instruments',
+    estimate_low: 120000, estimate_high: 180000,
+    images: ['https://images.unsplash.com/photo-1520523839897-bd0b52f945a0']
   }
 ];
 
@@ -247,7 +409,22 @@ const bidRecords = [
   { id: IDS.bids.live1_d, lotKey: 'live1', bidderKey: 'bidderAva', amount: 60000, minutesAgo: 30, isWinning: true },
   { id: IDS.bids.live2_a, lotKey: 'live2', bidderKey: 'bidderMiles', amount: 16000, minutesAgo: 120, isWinning: false },
   { id: IDS.bids.live2_b, lotKey: 'live2', bidderKey: 'bidderAva', amount: 18000, minutesAgo: 100, isWinning: false },
-  { id: IDS.bids.live2_c, lotKey: 'live2', bidderKey: 'bidderZara', amount: 22000, minutesAgo: 45, isWinning: true }
+  { id: IDS.bids.live2_c, lotKey: 'live2', bidderKey: 'bidderZara', amount: 22000, minutesAgo: 45, isWinning: true },
+  // Extra bids on new lots
+  { id: 'b0000001-0000-4000-a000-000000000001', lotKey: 'live4', bidderKey: 'bidderAva', amount: 37500, minutesAgo: 200, isWinning: false },
+  { id: 'b0000001-0000-4000-a000-000000000002', lotKey: 'live4', bidderKey: 'bidderZara', amount: 40000, minutesAgo: 140, isWinning: false },
+  { id: 'b0000001-0000-4000-a000-000000000003', lotKey: 'live4', bidderKey: 'bidderMiles', amount: 42500, minutesAgo: 80, isWinning: true },
+  { id: 'b0000001-0000-4000-a000-000000000004', lotKey: 'live6', bidderKey: 'bidderZara', amount: 160000, minutesAgo: 180, isWinning: false },
+  { id: 'b0000001-0000-4000-a000-000000000005', lotKey: 'live6', bidderKey: 'bidderAva', amount: 170000, minutesAgo: 110, isWinning: true },
+  { id: 'b0000001-0000-4000-a000-000000000006', lotKey: 'live9', bidderKey: 'bidderMiles', amount: 23000, minutesAgo: 160, isWinning: false },
+  { id: 'b0000001-0000-4000-a000-000000000007', lotKey: 'live9', bidderKey: 'bidderAva', amount: 24000, minutesAgo: 95, isWinning: false },
+  { id: 'b0000001-0000-4000-a000-000000000008', lotKey: 'live9', bidderKey: 'bidderZara', amount: 25000, minutesAgo: 50, isWinning: true },
+  { id: 'b0000001-0000-4000-a000-000000000009', lotKey: 'live12', bidderKey: 'bidderAva', amount: 110000, minutesAgo: 170, isWinning: false },
+  { id: 'b0000001-0000-4000-a000-000000000010', lotKey: 'live12', bidderKey: 'bidderMiles', amount: 115000, minutesAgo: 85, isWinning: true },
+  { id: 'b0000001-0000-4000-a000-000000000011', lotKey: 'live14', bidderKey: 'bidderZara', amount: 13000, minutesAgo: 130, isWinning: false },
+  { id: 'b0000001-0000-4000-a000-000000000012', lotKey: 'live14', bidderKey: 'bidderAva', amount: 14000, minutesAgo: 60, isWinning: true },
+  { id: 'b0000001-0000-4000-a000-000000000013', lotKey: 'live7', bidderKey: 'bidderMiles', amount: 16000, minutesAgo: 120, isWinning: true },
+  { id: 'b0000001-0000-4000-a000-000000000014', lotKey: 'live11', bidderKey: 'bidderZara', amount: 47500, minutesAgo: 100, isWinning: true }
 ];
 
 const walletRecords = [

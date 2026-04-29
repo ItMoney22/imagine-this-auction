@@ -27,32 +27,30 @@ export async function PUT(
 
     const updates = validation.data
 
-    // TEMPORARY: Skip auth for development
-    // Check authentication and admin role
-    // const {
-    //   data: { user },
-    //   error: authError,
-    // } = await supabase.auth.getUser()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
 
-    // if (authError || !user) {
-    //   return NextResponse.json(
-    //     { error: 'Authentication required' },
-    //     { status: 401 }
-    //   )
-    // }
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
 
-    // const { data: userData, error: userError } = await supabase
-    //   .from('users')
-    //   .select('role')
-    //   .eq('id', user.id)
-    //   .single()
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single()
 
-    // if (userError || !userData || userData.role !== 'admin') {
-    //   return NextResponse.json(
-    //     { error: 'Admin access required' },
-    //     { status: 403 }
-    //   )
-    // }
+    if (userError || !userData || userData.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Admin access required' },
+        { status: 403 }
+      )
+    }
 
     // Get current announcement
     const { data: currentAnnouncement, error: fetchError } = await supabase
@@ -87,13 +85,12 @@ export async function PUT(
       )
     }
 
-    // Log the action (using dummy admin ID for development)
     const action = updates.is_active === false ? 'announcement_deactivated' : 'announcement_updated'
     await supabase.rpc('log_admin_action', {
-      p_admin_id: 'dev-admin-id', // dummy admin ID for development
+      p_admin_id: user.id,
       p_action: action,
       p_target_type: 'announcement',
-      p_target_id: params.id,
+      p_target_id: id,
       p_before_values: {
         is_active: currentAnnouncement.is_active,
         expires_at: currentAnnouncement.expires_at,
@@ -124,32 +121,30 @@ export async function DELETE(
   try {
     const supabase = await createClient()
 
-    // TEMPORARY: Skip auth for development
-    // Check authentication and admin role
-    // const {
-    //   data: { user },
-    //   error: authError,
-    // } = await supabase.auth.getUser()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
 
-    // if (authError || !user) {
-    //   return NextResponse.json(
-    //     { error: 'Authentication required' },
-    //     { status: 401 }
-    //   )
-    // }
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
 
-    // const { data: userData, error: userError } = await supabase
-    //   .from('users')
-    //   .select('role')
-    //   .eq('id', user.id)
-    //   .single()
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single()
 
-    // if (userError || !userData || userData.role !== 'admin') {
-    //   return NextResponse.json(
-    //     { error: 'Admin access required' },
-    //     { status: 403 }
-    //   )
-    // }
+    if (userError || !userData || userData.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Admin access required' },
+        { status: 403 }
+      )
+    }
 
     // Get announcement before deletion for audit log
     const { data: announcement, error: fetchError } = await supabase
@@ -179,12 +174,11 @@ export async function DELETE(
       )
     }
 
-    // Log the action (using dummy admin ID for development)
     await supabase.rpc('log_admin_action', {
-      p_admin_id: 'dev-admin-id', // dummy admin ID for development
+      p_admin_id: user.id,
       p_action: 'announcement_deleted',
       p_target_type: 'announcement',
-      p_target_id: params.id,
+      p_target_id: id,
       p_before_values: announcement,
     })
 
