@@ -1,5 +1,6 @@
 import { AuthForm } from '@/components/auth/auth-form'
 import { createClient } from '@/lib/supabase/server'
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
 export default async function SignupPage() {
@@ -25,6 +26,13 @@ export default async function SignupPage() {
           </p>
         </div>
         <AuthForm mode="signup" />
+        <p className="text-center text-sm text-slate-600">
+          Want to sell on the marketplace? Create an account, then{' '}
+          <Link href="/become-auctioneer" className="font-semibold text-indigo-600 hover:text-indigo-700">
+            submit your auctioneer license
+          </Link>
+          .
+        </p>
       </div>
     </div>
   )

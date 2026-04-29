@@ -47,7 +47,6 @@ export default function AuctioneerInvoiceManager() {
     tracking_number: '',
     shipping_notes: '',
   })
-  const [selectedInvoice, setSelectedInvoice] = useState<string | null>(null)
   const [processingShipment, setProcessingShipment] = useState<string | null>(null)
 
   useEffect(() => {
@@ -94,7 +93,6 @@ export default function AuctioneerInvoiceManager() {
 
       // Reset form
       setShippingForm({ tracking_number: '', shipping_notes: '' })
-      setSelectedInvoice(null)
 
     } catch (error) {
       console.error('Error marking as shipped:', error)

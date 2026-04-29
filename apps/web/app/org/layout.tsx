@@ -37,21 +37,17 @@ export default async function OrgLayout({ children }: OrgLayoutProps) {
 
   if (!auctioneer) {
     return (
-      <main className="min-h-screen bg-gray-100">
-        <div className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
-          {children}
-        </div>
+      <main className="min-h-screen bg-[linear-gradient(180deg,#faf8ff_0%,#f6f3ff_45%,#fdfcff_100%)]">
+        <div className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">{children}</div>
       </main>
     )
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
+    <div className="flex min-h-screen flex-col bg-[linear-gradient(180deg,#faf8ff_0%,#f6f3ff_45%,#fdfcff_100%)] lg:flex-row">
       <OrgSidebar auctioneer={auctioneer} />
-      <main className="flex-1 overflow-auto">
-        <div className="p-4 sm:p-6 lg:p-8">
-          {children}
-        </div>
+      <main className="min-w-0 flex-1 overflow-auto">
+        <div className="mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-8">{children}</div>
       </main>
     </div>
   )

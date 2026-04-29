@@ -8,6 +8,7 @@ import { formatCurrency } from '@/lib/utils'
 
 import { BidHistory } from './bid-history'
 import { BiddingPanel } from './bidding-panel'
+import { LiveActivityTicker } from './live-activity-ticker'
 
 interface Props {
   lot: any
@@ -116,6 +117,8 @@ export function LotBiddingSidebar({ lot, auction, user, walletBalance, initialBi
         auctionEndTime={auctionEndTime}
         onBidPlaced={handleBidPlaced}
       />
+
+      <LiveActivityTicker lotId={lot.id} />
 
       <BidHistory lot={lot} bids={bids} currentUser={user} />
     </div>

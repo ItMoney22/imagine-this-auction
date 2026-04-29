@@ -2,7 +2,15 @@ import { AuthForm } from '@/components/auth/auth-form'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
-export default async function LoginPage() {
+interface LoginPageProps {
+  searchParams?: Promise<{
+    redirectedFrom?: string
+  }>
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const params = await searchParams
+  const redirectTo = params?.redirectedFrom || '/dashboard'
   const supabase = await createClient()
 
   const {
@@ -10,7 +18,7 @@ export default async function LoginPage() {
   } = await supabase.auth.getUser()
 
   if (user) {
-    redirect('/dashboard')
+    redirect(redirectTo)
   }
 
   return (
@@ -24,7 +32,7 @@ export default async function LoginPage() {
             Sign in with email & password or request a magic link
           </p>
         </div>
-        <AuthForm mode="login" />
+        <AuthForm mode="login" redirectTo={redirectTo} />
       </div>
     </div>
   )

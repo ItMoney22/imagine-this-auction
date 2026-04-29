@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/utils'
-import { Eye, Star, Package } from 'lucide-react'
+import { Eye, Package } from 'lucide-react'
+import { WatchButton } from '@/components/marketplace/watch-button'
 
 interface LotCardProps {
   lot: any
@@ -155,10 +156,7 @@ export function LotCard({ lot, auction: auctionProp, onImageError, hasImageError
             </Link>
           </Button>
 
-          {/* Watchlist button - placeholder for future implementation */}
-          <Button variant="outline" size="icon" className="flex-shrink-0">
-            <Star className="h-4 w-4" />
-          </Button>
+          <WatchButton lotId={lot.id} variant="icon" />
         </div>
       </CardContent>
     </Card>

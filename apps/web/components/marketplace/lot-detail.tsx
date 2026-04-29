@@ -17,6 +17,7 @@ import {
   DollarSign,
   TrendingUp
 } from 'lucide-react'
+import { WatchButton } from '@/components/marketplace/watch-button'
 
 interface LotDetailProps {
   lot: any
@@ -91,12 +92,14 @@ export function LotDetail({ lot, auction }: LotDetailProps) {
               </h1>
             </div>
 
-            {/* Reserve indicator */}
-            {lot.reserve_price && (
-              <Badge variant="destructive" className="self-start">
-                Reserve: {formatCurrency(lot.reserve_price)}
-              </Badge>
-            )}
+            <div className="flex items-center gap-2 self-start">
+              <WatchButton lotId={lot.id} variant="pill" showCount />
+              {lot.reserve_price && (
+                <Badge variant="destructive">
+                  Reserve: {formatCurrency(lot.reserve_price)}
+                </Badge>
+              )}
+            </div>
           </div>
         </CardHeader>
       </Card>

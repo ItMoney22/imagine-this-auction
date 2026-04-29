@@ -165,10 +165,27 @@ export function BiddingPanel({
     handleBid(getNextBidAmount())
   }
 
-  const handleMaxBid = () => {
+  const handleMaxBid = async () => {
     const amount = parseInt(maxBidAmount)
-    if (amount >= getNextBidAmount()) {
-      handleBid(amount)
+    if (!user || amount < getNextBidAmount() || loading) return
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/lots/${lot.id}/max-bid`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ max_amount: amount }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to set max bid')
+      toast({
+        title: 'Max bid set',
+        description: `We'll auto-bid up to ${formatCurrency(amount)} to keep you on top.`,
+      })
+      setMaxBidAmount('')
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' })
+    } finally {
+      setLoading(false)
     }
   }
 

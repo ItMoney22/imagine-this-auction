@@ -88,7 +88,8 @@ export async function GET(request: NextRequest) {
     }
 
     const auctioneerIds = auctioneers.map((auctioneer) => auctioneer.id)
-    const [auctionsResult, payoutsResult] = await Promise.all([
+    const userIds = auctioneers.map((auctioneer) => auctioneer.user_id)
+    const [auctionsResult, payoutsResult, licenseDocsResult] = await Promise.all([
       auctioneerIds.length > 0
         ? supabase
             .from('auctions')
@@ -100,6 +101,14 @@ export async function GET(request: NextRequest) {
             .from('payouts_due')
             .select('auctioneer_id, amount, is_paid')
             .in('auctioneer_id', auctioneerIds)
+        : Promise.resolve({ data: [], error: null }),
+      userIds.length > 0
+        ? supabase
+            .from('user_documents')
+            .select('id, user_id, filename, file_url, file_size, mime_type, verification_status, uploaded_at, verification_notes')
+            .eq('document_type', 'auctioneer_license')
+            .in('user_id', userIds)
+            .order('uploaded_at', { ascending: false })
         : Promise.resolve({ data: [], error: null }),
     ])
 
@@ -115,6 +124,14 @@ export async function GET(request: NextRequest) {
       console.error('Failed to fetch payout statistics:', payoutsResult.error)
       return NextResponse.json(
         { error: 'Failed to fetch payout statistics' },
+        { status: 500 }
+      )
+    }
+
+    if (licenseDocsResult.error) {
+      console.error('Failed to fetch license documents:', licenseDocsResult.error)
+      return NextResponse.json(
+        { error: 'Failed to fetch license documents' },
         { status: 500 }
       )
     }
@@ -146,12 +163,21 @@ export async function GET(request: NextRequest) {
       payoutStatsByAuctioneer.set(payout.auctioneer_id, current)
     }
 
+    const licenseDocumentByUser = new Map<string, NonNullable<typeof licenseDocsResult.data>[number]>()
+    for (const document of licenseDocsResult.data || []) {
+      if (!licenseDocumentByUser.has(document.user_id)) {
+        licenseDocumentByUser.set(document.user_id, document)
+      }
+    }
+
     const auctioneersWithStats = auctioneers.map((auctioneer) => {
       const auctionStats = auctionStatsByAuctioneer.get(auctioneer.id) || { total: 0, completed: 0 }
       const payoutStats = payoutStatsByAuctioneer.get(auctioneer.id) || { owed: 0, paid: 0 }
+      const licenseDocument = licenseDocumentByUser.get(auctioneer.user_id) || null
 
       return {
         ...auctioneer,
+        license_document: licenseDocument,
         stats: {
           total_auctions: auctionStats.total,
           completed_auctions: auctionStats.completed,

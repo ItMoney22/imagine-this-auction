@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ExternalLink, FileText } from 'lucide-react'
 
 interface Auctioneer {
   id: string
@@ -25,6 +26,16 @@ interface Auctioneer {
   approval_date: string | null
   created_at: string
   updated_at: string
+  license_document: {
+    id: string
+    filename: string
+    file_url: string
+    file_size: number | null
+    mime_type: string | null
+    verification_status: 'pending' | 'approved' | 'rejected'
+    uploaded_at: string
+    verification_notes: string | null
+  } | null
   user: {
     id: string
     email: string
@@ -105,6 +116,22 @@ export default function AuctioneerManager() {
       alert(error instanceof Error ? error.message : 'Failed to update auctioneer')
     } finally {
       setProcessingAction(false)
+    }
+  }
+
+  const openLicenseDocument = async (auctioneerId: string) => {
+    try {
+      const response = await fetch(`/api/admin/auctioneers/${auctioneerId}/license`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to open license document')
+      }
+
+      window.open(data.url, '_blank', 'noopener,noreferrer')
+    } catch (error) {
+      console.error('Error opening license document:', error)
+      alert(error instanceof Error ? error.message : 'Failed to open license document')
     }
   }
 
@@ -224,6 +251,36 @@ export default function AuctioneerManager() {
                             </p>
                           )}
 
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-600">
+                            <FileText className="h-4 w-4 text-indigo-600" />
+                            <strong>License document:</strong>
+                            {auctioneer.license_document ? (
+                              <>
+                                <Badge
+                                  variant={
+                                    auctioneer.license_document.verification_status === 'approved'
+                                      ? 'default'
+                                      : auctioneer.license_document.verification_status === 'rejected'
+                                        ? 'destructive'
+                                        : 'secondary'
+                                  }
+                                >
+                                  {auctioneer.license_document.verification_status}
+                                </Badge>
+                                <button
+                                  type="button"
+                                  onClick={() => openLicenseDocument(auctioneer.id)}
+                                  className="inline-flex items-center gap-1 font-medium text-indigo-600 hover:text-indigo-800"
+                                >
+                                  {auctioneer.license_document.filename}
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </button>
+                              </>
+                            ) : (
+                              <Badge variant="destructive">Missing upload</Badge>
+                            )}
+                          </div>
+
                           {auctioneer.tax_id && (
                             <p className="text-sm text-gray-600">
                               <strong>Tax ID:</strong> {auctioneer.tax_id}
@@ -291,6 +348,11 @@ export default function AuctioneerManager() {
                         >
                           Review Application
                         </Button>
+                        {!auctioneer.license_document && (
+                          <p className="max-w-36 text-right text-xs text-red-600">
+                            License upload required
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -320,6 +382,21 @@ export default function AuctioneerManager() {
                 <div>
                   <Label>Business License</Label>
                   <p className="text-sm">{selectedAuctioneer.business_license || 'Not provided'}</p>
+                </div>
+                <div>
+                  <Label>Uploaded License</Label>
+                  {selectedAuctioneer.license_document ? (
+                    <button
+                      type="button"
+                      onClick={() => openLicenseDocument(selectedAuctioneer.id)}
+                      className="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 hover:text-indigo-800"
+                    >
+                      {selectedAuctioneer.license_document.filename}
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </button>
+                  ) : (
+                    <p className="text-sm text-red-600">Missing upload</p>
+                  )}
                 </div>
                 <div>
                   <Label>Tax ID</Label>
@@ -354,7 +431,7 @@ export default function AuctioneerManager() {
               <div className="flex space-x-2">
                 <Button
                   onClick={() => updateAuctioneerStatus(selectedAuctioneer.id, true)}
-                  disabled={processingAction}
+                  disabled={processingAction || !selectedAuctioneer.license_document}
                   className="flex-1 bg-green-600 hover:bg-green-700"
                 >
                   {processingAction ? 'Processing...' : 'Approve'}

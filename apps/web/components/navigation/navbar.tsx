@@ -182,6 +182,15 @@ export function Navbar({ user }: NavbarProps) {
                 >
                   Profile
                 </Link>
+                {user.role === 'bidder' && (
+                  <Link
+                    href="/become-auctioneer"
+                    className="block rounded-xl px-3 py-2 text-base font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Become Auctioneer
+                  </Link>
+                )}
                 <Link
                   href="/wallet"
                   className="block rounded-xl px-3 py-2 text-base font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700"

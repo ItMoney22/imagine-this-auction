@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/utils'
 import { History, TrendingUp, User, Crown } from 'lucide-react'
+import { BidderBadge } from '@/components/marketplace/bidder-badge'
 
 interface BidHistoryProps {
   lot: any
@@ -105,6 +106,12 @@ export function BidHistory({ lot, bids: initialBids, currentUser }: BidHistoryPr
                         >
                           {isUserBid ? 'You' : getDisplayName(bid)}
                         </span>
+                        {bid.bidder_id && <BidderBadge userId={bid.bidder_id} />}
+                        {bid.is_proxy && (
+                          <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-semibold">
+                            auto
+                          </span>
+                        )}
                       </div>
                     </div>
 

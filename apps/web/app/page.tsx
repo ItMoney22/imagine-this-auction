@@ -128,7 +128,6 @@ const comparisonRows = [
   { feature: 'Per-Bid Fee', us: 'Free', them: '$0.25/bid', usWins: true },
   { feature: 'Platform Commission', us: '1.2%', them: '2% of GMV', usWins: true },
   { feature: 'Webcast Setup Fee', us: 'Free', them: '$25/auction', usWins: true },
-  { feature: 'Credit Card Auth Fee', us: 'Free', them: '$1/auth', usWins: true },
   { feature: 'Listing Fee', us: 'Free', them: '$195/listing', usWins: true },
 ]
 
@@ -319,7 +318,7 @@ export default async function Home() {
                   </div>
                 </div>
                 <div className="p-6 text-center">
-                  <span className="font-bold text-lg text-white/80">HiBid / AuctionFlex</span>
+                  <span className="font-bold text-lg text-white/80">The Others</span>
                 </div>
               </div>
 
@@ -435,7 +434,7 @@ export default async function Home() {
                   <div className="hidden lg:block absolute top-12 left-[60%] w-full h-px bg-gradient-to-r from-purple-300 to-transparent" />
                 )}
                 <div className="relative p-8 rounded-3xl bg-white backdrop-blur-sm border border-slate-200 shadow-[0_8px_40px_rgba(0,0,0,0.06)] transition-all duration-500 hover:shadow-[0_20px_60px_rgba(76,29,149,0.1)] hover:-translate-y-1">
-                  <span className="inline-block text-6xl font-display font-bold text-slate-100 mb-4 select-none">{step.number}</span>
+                  <span className="inline-block text-8xl font-display font-bold text-slate-200 mb-4 select-none leading-none">{step.number}</span>
                   <div className="absolute top-8 right-8 w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-purple-500/30">
                     <step.icon className="w-5 h-5" />
                   </div>
@@ -479,7 +478,7 @@ export default async function Home() {
               <div className="space-y-6">
                 {/* Their Cost */}
                 <div className="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
-                  <p className="text-sm font-semibold uppercase tracking-wider text-red-400 mb-3">With HiBid / AuctionFlex</p>
+                  <p className="text-sm font-semibold uppercase tracking-wider text-red-400 mb-3">With The Others</p>
                   <div className="space-y-2 text-white/70 text-sm">
                     <div className="flex justify-between"><span>Software fee</span><span>$145/mo</span></div>
                     <div className="flex justify-between"><span>Per-auction fees (4 auctions)</span><span>$300/mo</span></div>

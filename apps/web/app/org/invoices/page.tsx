@@ -5,27 +5,23 @@ import AuctioneerInvoiceManager from '@/components/org/auctioneer-invoice-manage
 export default async function OrgInvoicesPage() {
   const supabase = await createClient()
 
-  // TEMPORARY: Skip auth for development
-  // Check authentication
-  // const {
-  //   data: { user },
-  //   error: authError,
-  // } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  // if (authError || !user) {
-  //   redirect('/auth')
-  // }
+  if (!user) {
+    redirect('/login')
+  }
 
-  // Check if user is auctioneer
-  // const { data: userData, error: userError } = await supabase
-  //   .from('users')
-  //   .select('role')
-  //   .eq('id', user.id)
-  //   .single()
+  const { data: userData } = await supabase
+    .from('users')
+    .select('role')
+    .eq('id', user.id)
+    .single()
 
-  // if (userError || !userData || userData.role !== 'auctioneer') {
-  //   redirect('/')
-  // }
+  if (!userData || userData.role !== 'auctioneer') {
+    redirect('/dashboard')
+  }
 
   return <AuctioneerInvoiceManager />
 }
