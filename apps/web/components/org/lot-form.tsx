@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Check,
+  ClipboardCheck,
   ImagePlus,
   Loader2,
   Save,
@@ -173,6 +174,7 @@ export function LotForm({
   const [uploadingImages, setUploadingImages] = useState(false)
   const [savingLot, setSavingLot] = useState(false)
   const [runningAi, setRunningAi] = useState(false)
+  const [runningConditionReport, setRunningConditionReport] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [aiSuggestions, setAiSuggestions] = useState<AiSuggestionBundle | null>(null)
@@ -364,6 +366,46 @@ export function LotForm({
     }
   }
 
+  const runConditionReport = async () => {
+    if (imageUrls.length === 0 || runningConditionReport) return
+    setRunningConditionReport(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      const response = await fetch('/api/ai/condition-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_urls: imageUrls,
+          title: form.title || undefined,
+          description: form.description || undefined,
+        }),
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Condition report failed')
+      const r = payload.report
+      const formatted = [
+        `Overall: ${r.overall_grade ?? 'n/a'}`,
+        r.summary ? `\nSummary: ${r.summary}` : '',
+        r.highlights?.length ? `\nHighlights:\n  - ${r.highlights.join('\n  - ')}` : '',
+        r.wear_and_flaws?.length ? `\nWear & flaws:\n  - ${r.wear_and_flaws.join('\n  - ')}` : '',
+        r.dimensions_estimate ? `\nDimensions: ${r.dimensions_estimate}` : '',
+        r.materials?.length ? `\nMaterials: ${r.materials.join(', ')}` : '',
+        r.era_estimate ? `\nEra: ${r.era_estimate}` : '',
+        r.authenticity_notes?.length ? `\nAuthenticity:\n  - ${r.authenticity_notes.join('\n  - ')}` : '',
+        r.recommended_inspection?.length ? `\nVerify in person:\n  - ${r.recommended_inspection.join('\n  - ')}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n')
+      setForm((current) => ({ ...current, conditionReport: formatted.trim() }))
+      setSuccess('Condition report generated and inserted below.')
+    } catch (e: any) {
+      setError(e.message ?? 'Condition report failed')
+    } finally {
+      setRunningConditionReport(false)
+    }
+  }
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSavingLot(true)
@@ -521,19 +563,34 @@ export function LotForm({
                     assistant by public URL.
                   </p>
                 </div>
-                <Button
-                  type="button"
-                  onClick={runAiAssistant}
-                  disabled={!aiEnabled || imageUrls.length === 0 || runningAi}
-                  className="btn-glow"
-                >
-                  {runningAi ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="mr-2 h-4 w-4" />
-                  )}
-                  {runningAi ? 'Analyzing your item...' : 'AI Assist'}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    onClick={runAiAssistant}
+                    disabled={!aiEnabled || imageUrls.length === 0 || runningAi}
+                    className="btn-glow"
+                  >
+                    {runningAi ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="mr-2 h-4 w-4" />
+                    )}
+                    {runningAi ? 'Analyzing your item...' : 'AI Assist'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={runConditionReport}
+                    disabled={imageUrls.length === 0 || runningConditionReport}
+                  >
+                    {runningConditionReport ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <ClipboardCheck className="mr-2 h-4 w-4" />
+                    )}
+                    {runningConditionReport ? 'Inspecting...' : 'Generate condition report'}
+                  </Button>
+                </div>
               </div>
 
               {!aiEnabled ? (

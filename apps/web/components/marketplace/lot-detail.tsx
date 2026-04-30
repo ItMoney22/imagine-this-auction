@@ -15,7 +15,8 @@ import {
   MapPin,
   Calendar,
   DollarSign,
-  TrendingUp
+  TrendingUp,
+  Box,
 } from 'lucide-react'
 import { WatchButton } from '@/components/marketplace/watch-button'
 
@@ -92,8 +93,17 @@ export function LotDetail({ lot, auction }: LotDetailProps) {
               </h1>
             </div>
 
-            <div className="flex items-center gap-2 self-start">
+            <div className="flex items-center gap-2 self-start flex-wrap">
               <WatchButton lotId={lot.id} variant="pill" showCount />
+              {lot.ar_model_url && (
+                <Button variant="outline" size="sm" asChild>
+                  {/* iOS Safari renders this natively as AR Quick Look */}
+                  <a rel="ar" href={lot.ar_model_url}>
+                    <Box className="h-4 w-4 mr-2" />
+                    View in your room
+                  </a>
+                </Button>
+              )}
               {lot.reserve_price && (
                 <Badge variant="destructive">
                   Reserve: {formatCurrency(lot.reserve_price)}

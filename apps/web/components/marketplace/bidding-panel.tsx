@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -43,6 +43,7 @@ export function BiddingPanel({
   onBidPlaced,
 }: BiddingPanelProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
   const { toast } = useToast()
 
@@ -67,6 +68,27 @@ export function BiddingPanel({
     )
     setCurrentHigh(highBid)
   }, [bids, lot.starting_bid, lot.current_high_bid])
+
+  // Quick-bid deeplink: when arriving from outbid notification with ?quickbid=1,
+  // scroll the Quick Bid button into view and toast a hint.
+  useEffect(() => {
+    if (searchParams?.get('quickbid') !== '1') return
+    if (!user) return
+    const t = setTimeout(() => {
+      const el = document.getElementById('quick-bid-button')
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        el.classList.add('ring-4', 'ring-amber-300', 'ring-offset-2')
+        setTimeout(() => el.classList.remove('ring-4', 'ring-amber-300', 'ring-offset-2'), 2500)
+      }
+      toast({
+        title: 'You were outbid',
+        description: `Tap "Bid ${formatCurrency(currentHigh + lot.increment)}" to retake the lead.`,
+      })
+    }, 400)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, user?.id, currentHigh])
 
   // Timer updates
   useEffect(() => {
@@ -327,9 +349,10 @@ export function BiddingPanel({
               <div className="space-y-2">
                 <Label>Quick Bid (Next Increment)</Label>
                 <Button
+                  id="quick-bid-button"
                   onClick={handleQuickBid}
                   disabled={!canBid() || loading}
-                  className="w-full"
+                  className="w-full transition-all"
                   size="lg"
                   aria-describedby="bid-amount-help"
                 >
