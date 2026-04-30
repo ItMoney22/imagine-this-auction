@@ -175,6 +175,8 @@ export function LotForm({
   const [savingLot, setSavingLot] = useState(false)
   const [runningAi, setRunningAi] = useState(false)
   const [runningConditionReport, setRunningConditionReport] = useState(false)
+  const [arModelUrl, setArModelUrl] = useState<string>('')
+  const [uploadingArModel, setUploadingArModel] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [aiSuggestions, setAiSuggestions] = useState<AiSuggestionBundle | null>(null)
@@ -255,6 +257,35 @@ export function LotForm({
   const removeImage = (urlToRemove: string) => {
     setImageUrls((current) => current.filter((url) => url !== urlToRemove))
   }
+
+  const handleArModelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (!/\.usdz$/i.test(file.name)) {
+      setError('AR model must be a .usdz file (used by iOS Quick Look)')
+      event.target.value = ''
+      return
+    }
+    setUploadingArModel(true)
+    setError(null)
+    try {
+      const path = `${auction.id}/${Date.now()}-${sanitizeFilename(file.name)}`
+      const { error: upErr } = await supabase.storage
+        .from('ar-models')
+        .upload(path, file, { contentType: 'model/vnd.usdz+zip', upsert: false })
+      if (upErr) throw upErr
+      const { data } = supabase.storage.from('ar-models').getPublicUrl(path)
+      setArModelUrl(data.publicUrl)
+      setSuccess('AR model uploaded')
+    } catch (e: any) {
+      setError(e.message ?? 'Failed to upload AR model')
+    } finally {
+      event.target.value = ''
+      setUploadingArModel(false)
+    }
+  }
+
+  const removeArModel = () => setArModelUrl('')
 
   const updateSuggestionField = (key: SuggestionFieldKey, value: string) => {
     setAiSuggestions((current) => {
@@ -495,6 +526,7 @@ export function LotForm({
         increment,
         reserve_price: reservePrice,
         images: imageUrls,
+        ar_model_url: arModelUrl || null,
         ai_generated: acceptedFieldNames.length > 0,
         ai_metadata: aiMetadata,
       }
@@ -668,6 +700,39 @@ export function LotForm({
                     Upload photos to unlock AI-assisted cataloging.
                   </div>
                 ) : null}
+              </div>
+
+              <div className="space-y-2 border-t border-slate-200 pt-4">
+                <Label htmlFor="ar-model">AR model (.usdz, optional)</Label>
+                <p className="text-xs text-slate-500">
+                  Upload a USDZ file for "View in your room" AR preview on iOS. Buyers tap the AR
+                  button on the lot detail page to see the item life-size in their space.
+                </p>
+                <div className="flex items-center gap-3">
+                  <Input
+                    id="ar-model"
+                    type="file"
+                    accept=".usdz,model/vnd.usdz+zip"
+                    onChange={handleArModelUpload}
+                    disabled={uploadingArModel || savingLot}
+                    className="max-w-sm"
+                  />
+                  {uploadingArModel && <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />}
+                </div>
+                {arModelUrl && (
+                  <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                    <Check className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate flex-1">{arModelUrl}</span>
+                    <button
+                      type="button"
+                      onClick={removeArModel}
+                      className="text-emerald-700 hover:text-emerald-900"
+                      aria-label="Remove AR model"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             </section>
 

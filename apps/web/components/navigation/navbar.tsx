@@ -40,6 +40,7 @@ export function Navbar({ user }: NavbarProps) {
   const navigation = [
     { href: '/auctions', label: 'Auctions' },
     { href: '/lots', label: 'Browse Lots' },
+    { href: '/leaderboard', label: 'Leaderboard' },
     { href: '/how-it-works', label: 'How It Works' },
   ]
 
