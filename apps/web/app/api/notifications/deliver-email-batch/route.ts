@@ -13,10 +13,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // send_watchlist_ending_alerts → 'watchlist_ending') and admin announcements.
 // This route emails every notification not yet delivered (email_sent_at NULL).
 
-const SITE_URL =
+// trim(): the Vercel-stored NEXT_PUBLIC_APP_URL carries a trailing newline
+const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL ||
   process.env.NEXT_PUBLIC_APP_URL ||
   'https://imaginethisauction.com'
+).trim()
 
 const BatchRequestSchema = z.object({
   user_id: z.string().uuid().optional(),

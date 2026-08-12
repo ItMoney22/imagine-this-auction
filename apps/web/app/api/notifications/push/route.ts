@@ -12,10 +12,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 //   user_device_tokens(id, user_id, endpoint, p256dh, auth, last_used, created_at)
 // Subscriptions are registered by POST /api/notifications/push/subscribe.
 
-const SITE_URL =
+// trim(): the Vercel-stored NEXT_PUBLIC_APP_URL carries a trailing newline
+const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL ||
   process.env.NEXT_PUBLIC_APP_URL ||
   'https://imaginethisauction.com'
+).trim()
 
 const VAPID_CONFIGURED = !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY)
 
