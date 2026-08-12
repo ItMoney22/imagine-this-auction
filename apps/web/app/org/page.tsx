@@ -97,7 +97,7 @@ export default async function OrgOverviewPage() {
           </CardHeader>
           <CardContent>
             <Button asChild>
-              <Link href="/org/onboarding">Start Onboarding</Link>
+              <Link href="/become-auctioneer">Start Onboarding</Link>
             </Button>
           </CardContent>
         </Card>

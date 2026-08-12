@@ -1,380 +1,237 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { z } from 'zod'
 
-// Initialize email service based on provider
-function getEmailService() {
-  const provider = process.env.EMAIL_PROVIDER || 'resend'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
-  switch (provider) {
-    case 'resend':
-      if (!process.env.RESEND_API_KEY) {
-        throw new Error('RESEND_API_KEY is required')
-      }
-      return new Resend(process.env.RESEND_API_KEY)
-    case 'ses':
-      // AWS SES implementation would go here
-      throw new Error('AWS SES provider not implemented yet')
-    default:
-      throw new Error(`Unsupported email provider: ${provider}`)
-  }
-}
+// Rewritten 2026-08-12 against the LIVE notifications schema:
+//   notifications(id, user_id, title, message, type, is_read, batch_id,
+//                 created_at, email_sent_at, push_sent_at)
+// Rows are created by DB functions (place_bid → 'outbid',
+// send_watchlist_ending_alerts → 'watchlist_ending') and admin announcements.
+// This route emails every notification not yet delivered (email_sent_at NULL).
+
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  process.env.NEXT_PUBLIC_APP_URL ||
+  'https://imaginethisauction.com'
 
 const BatchRequestSchema = z.object({
-  batch_id: z.string().uuid().optional(),
   user_id: z.string().uuid().optional(),
   limit: z.number().min(1).max(100).default(50),
   dry_run: z.boolean().default(false),
 })
 
-// Email templates
-function getDailyDigestTemplate(data: any) {
-  const { user, recommendations, unsubscribe_url } = data
+// Only deliver notifications younger than this — avoids blasting a stale
+// backlog if the cron was ever paused.
+const MAX_AGE_HOURS = 72
 
-  const recommendationsHtml = recommendations.map((lot: any) => {
-    const hype = lot.hype_copy || {}
-    const priceDisplay = lot.start_price_itc
-      ? `Starting at ${lot.start_price_itc} ITC`
-      : 'Contact for pricing'
+const CTA_BY_TYPE: Record<string, { label: string; path: string }> = {
+  outbid: { label: 'Bid Again', path: '/dashboard' },
+  watchlist_ending: { label: 'View Your Watchlist', path: '/dashboard' },
+  announcement: { label: 'Open ImagineThisAuction', path: '/' },
+}
 
-    return `
-      <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px; background: white;">
-        <h3 style="margin: 0 0 10px 0; color: #1a202c; font-size: 18px;">${hype.headline || lot.title}</h3>
-        <p style="margin: 0 0 10px 0; color: #4a5568; font-size: 14px;">${hype.teaser || lot.description.slice(0, 200)}...</p>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
-          <span style="color: #2d3748; font-weight: bold;">${priceDisplay}</span>
-          <a href="${process.env.NEXT_PUBLIC_SITE_URL}/lots/${lot.id}"
-             style="background: #667eea; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px; font-size: 14px;">
-            ${hype.cta || 'View Details'}
-          </a>
-        </div>
-        <p style="margin: 10px 0 0 0; color: #a0aec0; font-size: 12px;">
-          Ends: ${new Date(lot.ends_at).toLocaleDateString()} | Category: ${lot.category}
-        </p>
-      </div>
-    `
-  }).join('')
+function buildEmail(notification: { title: string; message: string; type: string | null }) {
+  const cta = CTA_BY_TYPE[notification.type ?? ''] ?? {
+    label: 'Open ImagineThisAuction',
+    path: '/dashboard',
+  }
+  const link = `${SITE_URL}${cta.path}`
 
   return {
-    subject: `Your Daily Auction Picks - ${recommendations.length} items ending soon`,
+    subject: notification.title,
     html: `
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Daily Auction Recommendations</title>
-</head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f7fafc;">
-  <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-
-    <!-- Header -->
-    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px 20px; text-align: center;">
-      <h1 style="margin: 0; font-size: 24px; font-weight: bold;">🔨 ImagineThis Auction</h1>
-      <p style="margin: 10px 0 0 0; opacity: 0.9;">Your personalized auction recommendations</p>
+  <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 26px 20px; text-align: center;">
+      <h1 style="margin: 0; font-size: 22px; font-weight: bold;">🔨 ImagineThisAuction</h1>
     </div>
-
-    <!-- Content -->
-    <div style="padding: 30px 20px;">
-      <p style="margin: 0 0 20px 0; font-size: 16px;">Hi ${user.first_name || 'there'},</p>
-
-      <p style="margin: 0 0 25px 0; color: #4a5568;">
-        We've found ${recommendations.length} auction items that match your interests. These lots are ending soon, so don't miss out!
-      </p>
-
-      ${recommendationsHtml}
-
-      <div style="text-align: center; margin-top: 30px; padding-top: 30px; border-top: 1px solid #e2e8f0;">
-        <a href="${process.env.NEXT_PUBLIC_SITE_URL}/auctions"
-           style="background: #48bb78; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-          View All Auctions
-        </a>
+    <div style="padding: 30px 24px;">
+      <h2 style="margin: 0 0 12px 0; color: #1a202c; font-size: 20px;">${notification.title}</h2>
+      <p style="margin: 0 0 24px 0; color: #4a5568; font-size: 15px;">${notification.message}</p>
+      <div style="text-align: center;">
+        <a href="${link}" style="background: #667eea; color: white; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">${cta.label}</a>
       </div>
     </div>
-
-    <!-- Footer -->
-    <div style="background: #f8f9fa; padding: 20px; text-align: center; color: #6c757d; font-size: 12px;">
-      <p style="margin: 0 0 10px 0;">
-        You're receiving this because you subscribed to auction recommendations.
-      </p>
+    <div style="background: #f8f9fa; padding: 18px; text-align: center; color: #6c757d; font-size: 12px;">
       <p style="margin: 0;">
-        <a href="${unsubscribe_url}" style="color: #6c757d;">Unsubscribe</a> |
-        <a href="${process.env.NEXT_PUBLIC_SITE_URL}/settings/notifications" style="color: #6c757d;">Manage Preferences</a>
+        <a href="${SITE_URL}/settings/notifications" style="color: #6c757d;">Manage notification preferences</a>
       </p>
     </div>
   </div>
 </body>
-</html>
-    `,
-    text: `
-Daily Auction Recommendations - ${recommendations.length} items
-
-Hi ${user.first_name || 'there'},
-
-We've found ${recommendations.length} auction items that match your interests:
-
-${recommendations.map((lot: any, i: number) => `
-${i + 1}. ${lot.title}
-   ${lot.description.slice(0, 100)}...
-   ${lot.start_price_itc ? `Starting at ${lot.start_price_itc} ITC` : 'Contact for pricing'}
-   View: ${process.env.NEXT_PUBLIC_SITE_URL}/lots/${lot.id}
-`).join('\n')}
-
-View all auctions: ${process.env.NEXT_PUBLIC_SITE_URL}/auctions
-
-Unsubscribe: ${unsubscribe_url}
-    `.trim()
+</html>`,
+    text: `${notification.title}\n\n${notification.message}\n\n${cta.label}: ${link}\n\nManage preferences: ${SITE_URL}/settings/notifications`,
   }
 }
 
-function getLotAlertTemplate(data: any) {
-  const { user, lot, interest_score, matched_tags } = data
-  const hype = lot.hype_copy || {}
+// Caller must be an admin session or a cron request bearing CRON_SECRET.
+async function isAuthorized(request: NextRequest): Promise<boolean> {
+  const cronSecret = process.env.CRON_SECRET
+  const auth = request.headers.get('authorization')
+  if (cronSecret && auth === `Bearer ${cronSecret}`) return true
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return false
+
+  const { data: profile } = await supabase
+    .from('users')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+  return profile?.role === 'admin'
+}
+
+async function runBatch(opts: { user_id?: string; limit: number; dry_run: boolean }) {
+  const admin: SupabaseClient = createAdminClient()
+
+  // Feature flag gate
+  const { data: flag } = await admin
+    .from('feature_flags')
+    .select('is_enabled')
+    .eq('flag_name', 'email_notifications')
+    .single()
+
+  if (!flag?.is_enabled) {
+    return { success: true, skipped: 'email_notifications feature flag is disabled', processed: 0, successful: 0, failed: 0 }
+  }
+
+  if (!process.env.RESEND_API_KEY) {
+    return { success: false, error: 'RESEND_API_KEY is not configured', processed: 0, successful: 0, failed: 0 }
+  }
+
+  const since = new Date(Date.now() - MAX_AGE_HOURS * 3600 * 1000).toISOString()
+
+  let query = admin
+    .from('notifications')
+    .select('id, user_id, title, message, type, created_at')
+    .is('email_sent_at', null)
+    .gte('created_at', since)
+    .order('created_at', { ascending: true })
+    .limit(opts.limit)
+
+  if (opts.user_id) {
+    query = query.eq('user_id', opts.user_id)
+  }
+
+  const { data: notifications, error: fetchError } = await query
+
+  if (fetchError) {
+    // Missing column = migration 014 not applied yet — say so plainly
+    const hint = fetchError.message.includes('email_sent_at')
+      ? 'Run migration 014_notification_delivery.sql (adds email_sent_at/push_sent_at)'
+      : undefined
+    return { success: false, error: `Failed to fetch notifications: ${fetchError.message}`, hint, processed: 0, successful: 0, failed: 0 }
+  }
+
+  if (!notifications || notifications.length === 0) {
+    return { success: true, message: 'No pending email notifications', processed: 0, successful: 0, failed: 0 }
+  }
+
+  // Resolve recipient emails in one query
+  const userIds = [...new Set(notifications.map((n) => n.user_id))]
+  const { data: users } = await admin
+    .from('users')
+    .select('id, email, first_name')
+    .in('id', userIds)
+  const usersById = new Map((users ?? []).map((u) => [u.id, u]))
+
+  const resend = new Resend(process.env.RESEND_API_KEY)
+  let successful = 0
+  let failed = 0
+  const errors: Array<{ notification_id: string; error: string }> = []
+
+  for (const notification of notifications) {
+    const recipient = usersById.get(notification.user_id)
+    if (!recipient?.email) {
+      // No deliverable address — mark handled so it isn't retried forever
+      if (!opts.dry_run) {
+        await admin
+          .from('notifications')
+          .update({ email_sent_at: new Date().toISOString() })
+          .eq('id', notification.id)
+      }
+      failed++
+      errors.push({ notification_id: notification.id, error: 'No email address for user' })
+      continue
+    }
+
+    if (opts.dry_run) {
+      successful++
+      continue
+    }
+
+    try {
+      const email = buildEmail(notification)
+      const result = await resend.emails.send({
+        from: process.env.FROM_EMAIL || 'noreply@imaginethisauction.com',
+        to: recipient.email,
+        subject: email.subject,
+        html: email.html,
+        text: email.text,
+        headers: { 'X-Notification-ID': notification.id },
+      })
+
+      if (result.error) {
+        throw new Error(result.error.message)
+      }
+
+      await admin
+        .from('notifications')
+        .update({ email_sent_at: new Date().toISOString() })
+        .eq('id', notification.id)
+
+      successful++
+      // Light throttle for provider rate limits
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    } catch (error) {
+      // Leave email_sent_at NULL — retried on the next batch run
+      failed++
+      errors.push({
+        notification_id: notification.id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      })
+    }
+  }
 
   return {
-    subject: hype.email_subject || `New item in your interest area: ${lot.title}`,
-    html: `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Auction Alert</title>
-</head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f7fafc;">
-  <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-
-    <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 30px 20px; text-align: center;">
-      <h1 style="margin: 0; font-size: 24px; font-weight: bold;">🎯 Interest Match!</h1>
-      <p style="margin: 10px 0 0 0; opacity: 0.9;">A new item matches your interests</p>
-    </div>
-
-    <div style="padding: 30px 20px;">
-      <h2 style="margin: 0 0 15px 0; color: #1a202c; font-size: 22px;">${hype.headline || lot.title}</h2>
-      <p style="margin: 0 0 20px 0; color: #4a5568; font-size: 16px;">${hype.teaser || lot.description}</p>
-
-      <div style="background: #f8f9fa; padding: 20px; border-radius: 6px; margin: 20px 0;">
-        <p style="margin: 0 0 10px 0; color: #4a5568;"><strong>Match Score:</strong> ${interest_score}/10</p>
-        <p style="margin: 0; color: #4a5568;"><strong>Matched Interests:</strong> ${matched_tags.join(', ')}</p>
-      </div>
-
-      <div style="text-align: center; margin-top: 30px;">
-        <a href="${process.env.NEXT_PUBLIC_SITE_URL}/lots/${lot.id}"
-           style="background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">
-          ${hype.cta || 'View Details'}
-        </a>
-      </div>
-    </div>
-
-    <div style="background: #f8f9fa; padding: 20px; text-align: center; color: #6c757d; font-size: 12px;">
-      <p style="margin: 0;">
-        <a href="${data.unsubscribe_url}" style="color: #6c757d;">Unsubscribe</a> |
-        <a href="${process.env.NEXT_PUBLIC_SITE_URL}/settings/notifications" style="color: #6c757d;">Manage Preferences</a>
-      </p>
-    </div>
-  </div>
-</body>
-</html>
-    `,
-    text: `
-Interest Match Alert!
-
-${lot.title}
-
-${lot.description}
-
-Match Score: ${interest_score}/10
-Matched Interests: ${matched_tags.join(', ')}
-
-View details: ${process.env.NEXT_PUBLIC_SITE_URL}/lots/${lot.id}
-
-Unsubscribe: ${data.unsubscribe_url}
-    `.trim()
+    success: true,
+    processed: notifications.length,
+    successful,
+    failed,
+    dry_run: opts.dry_run,
+    errors: errors.length > 0 ? errors.slice(0, 5) : undefined,
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!(await isAuthorized(request))) {
+      return NextResponse.json({ error: 'Admin or cron authorization required' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { batch_id, user_id, limit, dry_run } = BatchRequestSchema.parse(body)
-
-    console.log('Processing email batch:', { batch_id, user_id, limit, dry_run })
-
-    // Get pending email notifications
-    let query = supabase
-      .from('notifications')
-      .select('*')
-      .eq('type', 'email')
-      .eq('status', 'pending')
-      .lte('scheduled_for', new Date().toISOString())
-      .order('created_at', { ascending: true })
-      .limit(limit)
-
-    if (batch_id) {
-      query = query.eq('metadata->>batch_id', batch_id)
-    }
-
-    if (user_id) {
-      query = query.eq('user_id', user_id)
-    }
-
-    const { data: notifications, error: fetchError } = await query
-
-    if (fetchError) {
-      throw new Error(`Failed to fetch notifications: ${fetchError.message}`)
-    }
-
-    if (!notifications || notifications.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: 'No pending email notifications found',
-        processed: 0,
-        successful: 0,
-        failed: 0
-      })
-    }
-
-    console.log(`Found ${notifications.length} notifications to process`)
-
-    const emailService = getEmailService()
-    let successful = 0
-    let failed = 0
-    const errors: any[] = []
-    const results: any[] = []
-
-    // Mark notifications as processing
-    const notificationIds = notifications.map(n => n.id)
-    await supabase
-      .from('notifications')
-      .update({ status: 'processing' })
-      .in('id', notificationIds)
-
-    for (const notification of notifications) {
-      try {
-        if (dry_run) {
-          console.log(`[DRY RUN] Would send email to user ${notification.user_id}:`, {
-            subject: notification.subject,
-            content_type: typeof notification.content
-          })
-          successful++
-          continue
-        }
-
-        // Determine email template based on content
-        let emailData
-        const content = notification.content as any
-
-        if (content.recommendations) {
-          // Daily digest
-          emailData = getDailyDigestTemplate(content)
-        } else if (content.lot) {
-          // Lot alert
-          emailData = getLotAlertTemplate(content)
-        } else {
-          throw new Error('Unknown email template type')
-        }
-
-        // Send email via Resend
-        const result = await emailService.emails.send({
-          from: process.env.FROM_EMAIL || 'noreply@imaginethisauction.com',
-          to: content.user.email,
-          subject: emailData.subject,
-          html: emailData.html,
-          text: emailData.text,
-          headers: {
-            'X-Notification-ID': notification.id,
-            'X-User-ID': notification.user_id,
-          }
-        })
-
-        if (result.error) {
-          throw new Error(result.error.message)
-        }
-
-        // Update notification as sent
-        await supabase
-          .from('notifications')
-          .update({
-            status: 'sent',
-            sent_at: new Date().toISOString(),
-            metadata: {
-              ...notification.metadata,
-              email_id: result.data?.id,
-              provider: 'resend'
-            }
-          })
-          .eq('id', notification.id)
-
-        successful++
-        results.push({
-          notification_id: notification.id,
-          user_id: notification.user_id,
-          email_id: result.data?.id,
-          status: 'sent'
-        })
-
-        console.log(`Email sent successfully: ${notification.id} -> ${content.user.email}`)
-
-        // Add delay to respect rate limits
-        await new Promise(resolve => setTimeout(resolve, 100))
-
-      } catch (error) {
-        console.error(`Failed to send email ${notification.id}:`, error)
-
-        // Update notification as failed
-        await supabase
-          .from('notifications')
-          .update({
-            status: 'failed',
-            error_message: error instanceof Error ? error.message : 'Unknown error',
-          })
-          .eq('id', notification.id)
-
-        failed++
-        errors.push({
-          notification_id: notification.id,
-          user_id: notification.user_id,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        })
-      }
-    }
-
-    const result = {
-      success: true,
-      processed: notifications.length,
-      successful,
-      failed,
-      dry_run,
-      results: results.length > 0 ? results.slice(0, 10) : undefined,
-      errors: errors.length > 0 ? errors.slice(0, 5) : undefined,
-      provider: process.env.EMAIL_PROVIDER || 'resend'
-    }
-
-    console.log('Email batch completed:', result)
-
-    return NextResponse.json(result)
-
-  } catch (error) {
-    console.error('Email batch delivery failed:', error)
-
-    if (error instanceof z.ZodError) {
+    const body = await request.json().catch(() => ({}))
+    const parsed = BatchRequestSchema.safeParse(body)
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
+        { error: 'Invalid request data', details: parsed.error.issues },
         { status: 400 }
       )
     }
 
+    const result = await runBatch(parsed.data)
+    return NextResponse.json(result, { status: result.success ? 200 : 500 })
+  } catch (error) {
+    console.error('Email batch delivery failed:', error)
     return NextResponse.json(
       { error: 'Internal server error', message: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -382,31 +239,23 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Health check
-export async function GET() {
-  try {
-    const provider = process.env.EMAIL_PROVIDER || 'resend'
-    const hasApiKey = !!(
-      process.env.RESEND_API_KEY ||
-      process.env.AWS_ACCESS_KEY_ID
-    )
+// GET doubles as the Vercel cron entrypoint (crons issue GET with
+// Authorization: Bearer CRON_SECRET) and as a health check otherwise.
+export async function GET(request: NextRequest) {
+  const cronSecret = process.env.CRON_SECRET
+  const auth = request.headers.get('authorization')
 
-    return NextResponse.json({
-      status: 'healthy',
-      provider,
-      api_key_configured: hasApiKey,
-      from_email: process.env.FROM_EMAIL || 'noreply@imaginethisauction.com',
-      features: {
-        daily_digest: true,
-        lot_alerts: true,
-        batch_processing: true,
-        dry_run: true
-      }
-    })
-  } catch (error) {
-    return NextResponse.json(
-      { status: 'unhealthy', error: 'Configuration error' },
-      { status: 500 }
-    )
+  if (cronSecret && auth === `Bearer ${cronSecret}`) {
+    const result = await runBatch({ limit: 50, dry_run: false })
+    return NextResponse.json(result, { status: result.success ? 200 : 500 })
   }
+
+  return NextResponse.json({
+    status: 'healthy',
+    provider: 'resend',
+    api_key_configured: !!process.env.RESEND_API_KEY,
+    cron_configured: !!cronSecret,
+    from_email: process.env.FROM_EMAIL || 'noreply@imaginethisauction.com',
+    site_url: SITE_URL,
+  })
 }

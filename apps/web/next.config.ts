@@ -2,10 +2,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: __dirname,
-  eslint: {
-    // Disable ESLint during build for demo deployment
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     // Also ignore TypeScript errors for demo
     ignoreBuildErrors: true,
@@ -21,6 +17,11 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'images.unsplash.com',
         pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
+        pathname: '/storage/v1/object/public/**',
       },
     ],
   },

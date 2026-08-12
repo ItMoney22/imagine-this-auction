@@ -179,16 +179,6 @@ export function AuctionInfo({ auction, lotCount, categories }: AuctionInfoProps)
               </Badge>
             </div>
 
-            {auction.auctioneers?.slug && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full mt-3"
-                onClick={() => router.push(`/auctioneers/${auction.auctioneers.slug}`)}
-              >
-                View All Auctions
-              </Button>
-            )}
           </div>
         </CardContent>
       </Card>

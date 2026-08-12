@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import {
   CardPaymentRequestSchema,
   getCreditPack,
@@ -58,7 +60,11 @@ export async function POST(request: NextRequest) {
 
     const paymentReference = crypto.randomUUID()
 
-    await supabase.from('payment_events').insert({
+    // payment_events is admin-only under RLS — the intent record must be
+    // written with the service-role client, and a failed write must not be
+    // silently ignored or the payment becomes unreconcilable
+    const adminClient: SupabaseClient = createAdminClient()
+    const { error: eventError } = await adminClient.from('payment_events').insert({
       id: paymentReference,
       provider: PAYMENT_PROVIDER,
       provider_event_id: paymentReference,
@@ -74,6 +80,18 @@ export async function POST(request: NextRequest) {
       },
       created_at: new Date().toISOString(),
     })
+
+    if (eventError) {
+      console.error('Failed to record payment intent:', eventError)
+      return NextResponse.json<CardPaymentResponse>(
+        {
+          success: false,
+          status: 'pending',
+          error: 'Unable to initiate card payment',
+        },
+        { status: 500 }
+      )
+    }
 
     const response: CardPaymentResponse = {
       success: true,

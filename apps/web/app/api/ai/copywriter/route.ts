@@ -208,8 +208,30 @@ Keep it engaging but appropriate for a professional auction house.`
 
 export async function POST(request: NextRequest) {
   try {
-    // Check if copywriter is enabled
     const supabase = await createClient()
+
+    // AI generation spends money and writes to lots — require an admin or
+    // auctioneer session before doing anything else
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    const { data: profile } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile || (profile.role !== 'admin' && profile.role !== 'auctioneer')) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    }
+
+    // Check if copywriter is enabled
     const { data: flagData } = await supabase
       .from('feature_flags')
       .select('is_enabled')
@@ -230,7 +252,8 @@ export async function POST(request: NextRequest) {
     const { lots, style, batch_id } = validatedData
 
     // Check rate limits (basic implementation)
-    const rateLimitKey = `copywriter:${request.ip || 'unknown'}`
+    // NextRequest has no `ip` in Next 16 — use the forwarded header
+    const rateLimitKey = `copywriter:${request.headers.get('x-forwarded-for') || 'unknown'}`
     // In production, implement proper rate limiting with Redis
 
     // Generate copy for each lot
@@ -306,7 +329,7 @@ export async function POST(request: NextRequest) {
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
+        { error: 'Invalid request data', details: error.issues },
         { status: 400 }
       )
     }

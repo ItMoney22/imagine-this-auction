@@ -110,14 +110,6 @@ export function AuctionCard({ auction }: AuctionCardProps) {
               View Lots
             </Link>
           </Button>
-
-          {auction.auctioneers?.slug && (
-            <Button asChild variant="outline">
-              <Link href={`/auctioneers/${auction.auctioneers.slug}`}>
-                Store
-              </Link>
-            </Button>
-          )}
         </div>
       </CardContent>
     </Card>

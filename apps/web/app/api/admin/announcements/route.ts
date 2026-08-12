@@ -1,5 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { assertAdminOrThrow, createServiceRoleClient } from '@/lib/api/admin-auth'
+
+const CreateAnnouncementSchema = z.object({
+  title: z.string().min(1).max(200),
+  message: z.string().min(1).max(2000),
+  severity: z.enum(['info', 'warning', 'urgent']).default('info'),
+  target_roles: z.array(z.string()).default([]),
+  expires_at: z.string().nullish(),
+})
+
+export async function POST(request: NextRequest) {
+  try {
+    const { user } = await assertAdminOrThrow(request)
+
+    const body = await request.json()
+    const validation = CreateAnnouncementSchema.safeParse(body)
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: 'Invalid request data', details: validation.error.issues },
+        { status: 400 }
+      )
+    }
+
+    const supabase = createServiceRoleClient()
+    const { data, error } = await supabase
+      .from('system_announcements')
+      .insert({
+        title: validation.data.title,
+        message: validation.data.message,
+        severity: validation.data.severity,
+        target_roles: validation.data.target_roles,
+        expires_at: validation.data.expires_at || null,
+        is_active: true,
+        admin_id: user.id,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Failed to create announcement:', error.message)
+      return NextResponse.json(
+        { error: 'Failed to create announcement' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ announcement: data }, { status: 201 })
+  } catch (error) {
+    console.error('Create announcement API error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,7 +62,7 @@ export async function GET(request: NextRequest) {
     // Use service role client for admin operations
     const supabase = createServiceRoleClient()
 
-    let announcements = []
+    let announcements: any[] = []
 
     try {
       // Try to get announcements from the database

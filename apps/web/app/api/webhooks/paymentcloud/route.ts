@@ -1,10 +1,23 @@
+import { randomUUID, timingSafeEqual } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { PaymentCloudWebhookSchema } from '@/lib/payments/types'
-import { PAYMENT_PROVIDER } from '@/lib/payments/config'
+import { PAYMENT_PROVIDER, getCreditPack } from '@/lib/payments/config'
 
 const WEBHOOK_SECRET = process.env.PAYMENTCLOUD_WEBHOOK_SECRET
+
+// Shared-secret header check with a constant-time comparison.
+// TODO(paymentcloud-onboarding): once merchant credentials exist, replace with
+// PaymentCloud's real HMAC-over-body verification per their webhook docs.
+function isValidSignature(signature: string | null): boolean {
+  if (!WEBHOOK_SECRET || !signature) return false
+  const expected = Buffer.from(WEBHOOK_SECRET)
+  const received = Buffer.from(signature)
+  if (expected.length !== received.length) return false
+  return timingSafeEqual(expected, received)
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,7 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     const signature = request.headers.get('x-paymentcloud-signature')
-    if (!WEBHOOK_SECRET || signature !== WEBHOOK_SECRET) {
+    if (!isValidSignature(signature)) {
       return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 })
     }
 
@@ -26,7 +39,23 @@ export async function POST(request: NextRequest) {
     }
 
     const event = parseResult.data
-    const supabase = await createClient()
+    const payload = event.payload
+
+    // Never trust the webhook's amounts blindly — they must match the pack
+    const pack = getCreditPack(payload.packId)
+    if (!pack || payload.creditAmount !== pack.amount || payload.amountUsdCents !== pack.price) {
+      console.error('PaymentCloud webhook amount mismatch', {
+        packId: payload.packId,
+        creditAmount: payload.creditAmount,
+        amountUsdCents: payload.amountUsdCents,
+      })
+      return NextResponse.json({ error: 'Payload does not match credit pack' }, { status: 400 })
+    }
+
+    // payment_events is admin-only under RLS — webhook writes need the
+    // service-role client. Untyped: hand-written Database types drift from
+    // the live schema (see database.ts note in launch sweep).
+    const supabase: SupabaseClient = createAdminClient()
 
     // Ensure idempotency
     const { data: existingEvent, error: fetchError } = await supabase
@@ -44,15 +73,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, processed: false })
     }
 
-    const payload = event.payload
     const record = {
-      id: existingEvent?.id ?? event.eventId,
+      id: existingEvent?.id ?? randomUUID(),
       provider: 'paymentcloud',
       provider_event_id: event.eventId,
       event_type: event.type,
       payload: payload,
       processed: false,
-      created_at: payload?.createdAt ?? new Date().toISOString(),
+      created_at: event.occurredAt ?? new Date().toISOString(),
       processed_at: null,
     }
 

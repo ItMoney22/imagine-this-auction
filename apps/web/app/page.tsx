@@ -74,8 +74,10 @@ const placeholderLots: DisplayLot[] = [
 ]
 
 function LotCard({ lot }: { lot: DisplayLot }) {
+  // Placeholder lots (id "p-*") have no detail page — send visitors to the browse page instead
+  const href = lot.id.startsWith('p-') ? '/lots' : `/lots/${lot.id}`
   return (
-    <Link href={`/lots/${lot.id}`} className="group relative block">
+    <Link href={href} className="group relative block">
       <div className="relative overflow-hidden rounded-2xl bg-white/80 backdrop-blur-sm border border-white/60 shadow-[0_8px_40px_rgba(0,0,0,0.06)] transition-all duration-500 hover:shadow-[0_20px_60px_rgba(76,29,149,0.15)] hover:-translate-y-2 hover:border-purple-200/60">
         <div className="relative aspect-square overflow-hidden bg-gradient-to-br from-slate-100 to-slate-50">
           <Image src={lot.image} alt={lot.title} fill className="object-cover transition-transform duration-700 group-hover:scale-110" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />

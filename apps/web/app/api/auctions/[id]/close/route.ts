@@ -3,8 +3,9 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
   try {
     const supabase = await createClient()
 
@@ -42,7 +43,7 @@ export async function POST(
         *,
         auctioneer:auctioneers!inner(user_id)
       `)
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
     if (auctionError || !auction) {
@@ -78,7 +79,7 @@ export async function POST(
 
     // Call the database function to process auction end
     const { data: result, error: processError } = await supabase
-      .rpc('process_auction_end', { auction_uuid: params.id })
+      .rpc('process_auction_end', { auction_uuid: id })
 
     if (processError) {
       console.error('Failed to process auction end:', processError)
@@ -88,7 +89,7 @@ export async function POST(
       )
     }
 
-    if (!result.success) {
+    if (!result?.success) {
       return NextResponse.json(
         { error: result.error || 'Failed to process auction end' },
         { status: 400 }

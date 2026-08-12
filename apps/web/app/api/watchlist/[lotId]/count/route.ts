@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function GET(
   _req: NextRequest,
@@ -8,7 +9,9 @@ export async function GET(
   const { lotId } = await params
   const supabase = await createClient()
 
-  const { count } = await supabase
+  // Aggregate count only — served via service role so the watchlists table
+  // doesn't need a public SELECT policy (which would expose who watches what)
+  const { count } = await createAdminClient()
     .from('watchlists')
     .select('*', { count: 'exact', head: true })
     .eq('lot_id', lotId)

@@ -91,18 +91,9 @@ export function AuctionHeader({ auction }: AuctionHeaderProps) {
             <MapPin className="h-4 w-4 mr-2 flex-shrink-0" />
             <span>
               Hosted by{' '}
-              {auction.auctioneers?.slug ? (
-                <Link
-                  href={`/auctioneers/${auction.auctioneers.slug}`}
-                  className="font-medium text-blue-600 hover:text-blue-800"
-                >
-                  {auction.auctioneers.company_name}
-                </Link>
-              ) : (
-                <span className="font-medium">
-                  {auction.auctioneers?.company_name}
-                </span>
-              )}
+              <span className="font-medium">
+                {auction.auctioneers?.company_name}
+              </span>
             </span>
           </div>
 

@@ -135,9 +135,9 @@ export function BiddingPanel({
     setLoading(true)
     try {
       const { data, error } = await supabase.rpc('place_bid', {
-        lot_uuid: lot.id,
-        bidder_uuid: user.id,
-        bid_amount: amount
+        p_lot_id: lot.id,
+        p_user_id: user.id,
+        p_amount: amount
       })
 
       if (error) throw error

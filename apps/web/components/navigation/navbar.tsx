@@ -98,11 +98,11 @@ export function Navbar({ user }: NavbarProps) {
                     Wallet
                   </Link>
                   <Link
-                    href="/profile"
+                    href="/settings/notifications"
                     className="block rounded-xl px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-indigo-50 hover:text-indigo-700"
                     onClick={() => setIsProfileOpen(false)}
                   >
-                    Profile
+                    Notification Settings
                   </Link>
                   {user.role === 'admin' && (
                     <Link
@@ -176,13 +176,6 @@ export function Navbar({ user }: NavbarProps) {
                 >
                   Dashboard
                 </Link>
-                <Link
-                  href="/profile"
-                  className="block rounded-xl px-3 py-2 text-base font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Profile
-                </Link>
                 {user.role === 'bidder' && (
                   <Link
                     href="/become-auctioneer"
@@ -198,6 +191,13 @@ export function Navbar({ user }: NavbarProps) {
                   onClick={() => setIsMenuOpen(false)}
                 >
                   Wallet
+                </Link>
+                <Link
+                  href="/settings/notifications"
+                  className="block rounded-xl px-3 py-2 text-base font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-700"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Notification Settings
                 </Link>
                 <button
                   onClick={() => {

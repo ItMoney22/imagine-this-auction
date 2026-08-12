@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -68,7 +69,20 @@ export default function AdminDashboard() {
         {activeTab === 'auctioneers' && <AuctioneerManager />}
         {activeTab === 'financials' && <FinancialReports />}
         {activeTab === 'compliance' && <ComplianceManager />}
-        {activeTab === 'notifications' && <NotificationManager />}
+        {activeTab === 'notifications' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
+              <span>Delivery batches, stats, and manual triggers live in the ops console.</span>
+              <Link
+                href="/admin/notifications"
+                className="font-semibold text-indigo-700 hover:text-indigo-900"
+              >
+                Open Notification Ops Console →
+              </Link>
+            </div>
+            <NotificationManager />
+          </div>
+        )}
         {activeTab === 'invoices' && <InvoiceManager />}
         {activeTab === 'payouts' && <PayoutManager />}
       </div>

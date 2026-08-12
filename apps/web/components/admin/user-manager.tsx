@@ -87,7 +87,7 @@ export default function UserManager() {
       type,
       userId,
       currentValue,
-      newValue: newValue || null,
+      newValue: newValue ?? null,
       notes: '',
     })
   }

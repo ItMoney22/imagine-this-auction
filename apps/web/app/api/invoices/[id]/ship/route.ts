@@ -3,8 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 
 const ShippingSchema = z.object({
-  tracking_number: z.string().optional(),
-  shipping_notes: z.string().optional(),
+  tracking_number: z.string().nullish(),
+  shipping_notes: z.string().nullish(),
 })
 
 export async function POST(

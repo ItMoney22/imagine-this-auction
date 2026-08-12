@@ -108,22 +108,17 @@ export function NotificationControls() {
   const testCopywriter = async () => {
     setLoading(true)
     try {
-      // Get a sample lot for testing
-      const response = await fetch('/api/ai/copywriter/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          style: 'Hype',
-          sample: true
-        })
-      })
+      // Health check: confirms provider, model, and API key configuration
+      const response = await fetch('/api/ai/copywriter')
 
       const result = await response.json()
 
-      if (result.success) {
-        toast.success('Copywriter test completed! Check the logs for details.')
+      if (response.ok && result.status === 'healthy') {
+        toast.success(
+          `Copywriter healthy — ${result.provider} (${result.model}), API key ${result.api_key_configured ? 'configured' : 'MISSING'}`
+        )
       } else {
-        toast.error(result.error || 'Copywriter test failed')
+        toast.error(result.error || 'Copywriter health check failed')
       }
     } catch (error) {
       toast.error('Failed to test copywriter')
