@@ -48,6 +48,9 @@ export default function AuctioneerInvoiceManager() {
     shipping_notes: '',
   })
   const [processingShipment, setProcessingShipment] = useState<string | null>(null)
+  const [deliveryFormFor, setDeliveryFormFor] = useState<string | null>(null)
+  const [deliveryWeight, setDeliveryWeight] = useState('')
+  const [deliverySignature, setDeliverySignature] = useState(false)
 
   useEffect(() => {
     fetchInvoices()
@@ -97,6 +100,37 @@ export default function AuctioneerInvoiceManager() {
     } catch (error) {
       console.error('Error marking as shipped:', error)
       alert('Failed to mark item as shipped')
+    } finally {
+      setProcessingShipment(null)
+    }
+  }
+
+  const arrangeLocalDelivery = async (invoiceId: string) => {
+    try {
+      setProcessingShipment(invoiceId)
+      const weight = parseInt(deliveryWeight, 10)
+      const response = await fetch('/api/delivery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invoice_id: invoiceId,
+          weight_g: Number.isFinite(weight) && weight > 0 ? weight : undefined,
+          signature_required: deliverySignature,
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        alert(data.error ?? 'Failed to arrange local delivery')
+        return
+      }
+      alert(`Local delivery created — tracking ${data.delivery.tracking_number}`)
+      setDeliveryFormFor(null)
+      setDeliveryWeight('')
+      setDeliverySignature(false)
+      await fetchInvoices()
+    } catch (error) {
+      console.error('Error arranging local delivery:', error)
+      alert('Failed to arrange local delivery')
     } finally {
       setProcessingShipment(null)
     }
@@ -277,14 +311,65 @@ export default function AuctioneerInvoiceManager() {
                     </div>
 
                     {invoice.is_paid && !invoice.is_shipped && (
-                      <Button
-                        onClick={() => markAsShipped(invoice.id)}
-                        disabled={processingShipment === invoice.id}
-                        size="sm"
-                        className="bg-green-600 hover:bg-green-700"
-                      >
-                        {processingShipment === invoice.id ? 'Shipping...' : 'Mark Shipped'}
-                      </Button>
+                      <div className="flex flex-col items-end gap-2">
+                        <Button
+                          onClick={() => markAsShipped(invoice.id)}
+                          disabled={processingShipment === invoice.id}
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          {processingShipment === invoice.id ? 'Working...' : 'Mark Shipped'}
+                        </Button>
+                        {!invoice.tracking_number?.startsWith('ITA-') ? (
+                          deliveryFormFor === invoice.id ? (
+                            <div className="w-64 space-y-2 rounded-lg border bg-white p-3 text-left shadow-sm">
+                              <Label htmlFor={`weight-${invoice.id}`} className="text-xs">
+                                Package weight (grams, optional)
+                              </Label>
+                              <Input
+                                id={`weight-${invoice.id}`}
+                                type="number"
+                                min={1}
+                                placeholder="e.g. 2500"
+                                value={deliveryWeight}
+                                onChange={(e) => setDeliveryWeight(e.target.value)}
+                              />
+                              <label className="flex items-center gap-2 text-xs text-gray-600">
+                                <input
+                                  type="checkbox"
+                                  checked={deliverySignature}
+                                  onChange={(e) => setDeliverySignature(e.target.checked)}
+                                />
+                                Require recipient signature
+                              </label>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  disabled={processingShipment === invoice.id}
+                                  onClick={() => arrangeLocalDelivery(invoice.id)}
+                                >
+                                  Create delivery
+                                </Button>
+                                <Button size="sm" variant="ghost" onClick={() => setDeliveryFormFor(null)}>
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setDeliveryFormFor(invoice.id)}
+                            >
+                              Arrange Local Delivery
+                            </Button>
+                          )
+                        ) : (
+                          <span className="text-xs text-indigo-600">
+                            Local delivery: {invoice.tracking_number}
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

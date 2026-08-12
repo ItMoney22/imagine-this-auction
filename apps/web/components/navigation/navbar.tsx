@@ -32,6 +32,8 @@ export function Navbar({ user }: NavbarProps) {
         return '/admin'
       case 'auctioneer':
         return '/org'
+      case 'driver':
+        return '/driver'
       default:
         return '/dashboard'
     }

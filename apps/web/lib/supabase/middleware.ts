@@ -10,7 +10,7 @@ const PUBLIC_EXACT_ROUTES = new Set([
   '/api/health',
 ])
 
-const PUBLIC_PREFIX_ROUTES = ['/auctions', '/lots', '/api/webhooks']
+const PUBLIC_PREFIX_ROUTES = ['/auctions', '/lots', '/api/webhooks', '/track', '/api/track']
 const PROTECTED_PREFIX_ROUTES = [
   '/admin',
   '/org',
@@ -18,6 +18,7 @@ const PROTECTED_PREFIX_ROUTES = [
   '/wallet',
   '/invoices',
   '/settings',
+  '/driver',
 ]
 
 const isStaticAsset = (pathname: string) =>

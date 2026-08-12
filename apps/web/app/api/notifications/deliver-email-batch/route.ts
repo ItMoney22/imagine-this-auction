@@ -34,6 +34,8 @@ const CTA_BY_TYPE: Record<string, { label: string; path: string }> = {
   outbid: { label: 'Bid Again', path: '/dashboard' },
   watchlist_ending: { label: 'View Your Watchlist', path: '/dashboard' },
   announcement: { label: 'Open ImagineThisAuction', path: '/' },
+  delivery_offer: { label: 'View Delivery Offers', path: '/driver' },
+  delivery_update: { label: 'Track Your Package', path: '/invoices' },
 }
 
 function buildEmail(notification: { title: string; message: string; type: string | null }) {

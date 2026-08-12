@@ -73,6 +73,19 @@ export default function InvoicesDashboard() {
         ),
       }
     } else if (invoice.is_paid && !invoice.is_shipped) {
+      // Local deliveries get an ITA- tracking number as soon as the warehouse
+      // scans the package — link straight to the live tracking page
+      if (invoice.tracking_number?.startsWith('ITA-')) {
+        return {
+          badge: <Badge variant="secondary">Local Delivery</Badge>,
+          description: `Local delivery in progress — tracking ${invoice.tracking_number}`,
+          action: (
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/track/${invoice.tracking_number}`}>Track Package</Link>
+            </Button>
+          ),
+        }
+      }
       return {
         badge: <Badge variant="secondary">Paid - Awaiting Shipment</Badge>,
         description: 'Payment received. Your item will be shipped soon.',
@@ -84,7 +97,11 @@ export default function InvoicesDashboard() {
         description: invoice.tracking_number
           ? `Shipped with tracking: ${invoice.tracking_number}`
           : 'Your item has been shipped',
-        action: invoice.tracking_number ? (
+        action: invoice.tracking_number?.startsWith('ITA-') ? (
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/track/${invoice.tracking_number}`}>Track Package</Link>
+          </Button>
+        ) : invoice.tracking_number ? (
           <Button variant="outline" size="sm">
             Track Package
           </Button>
