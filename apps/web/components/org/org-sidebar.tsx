@@ -8,6 +8,7 @@ import {
   FileText,
   Gavel,
   Plus,
+  ScanBarcode,
   Settings,
   ShieldCheck,
 } from 'lucide-react'
@@ -24,6 +25,11 @@ const navigation = [
     name: 'Overview',
     href: '/org',
     icon: BarChart3,
+  },
+  {
+    name: 'Quick List',
+    href: '/org/quick-list',
+    icon: ScanBarcode,
   },
   {
     name: 'Auctions',

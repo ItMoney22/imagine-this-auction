@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { LotDetail } from '@/components/marketplace/lot-detail'
 import { LotBiddingSidebar } from '@/components/marketplace/lot-bidding-sidebar'
+import { computeWalletBalance } from '@/lib/wallet/balance'
+import type { LotImageRecord } from '@/lib/ai/quick-listing'
 
 interface Props {
   params: Promise<{
@@ -78,22 +80,22 @@ export default async function LotDetailPage({ params }: Props) {
       .select('amount, transaction_type')
       .eq('user_id', user.id)
 
-    if (walletData) {
-      walletBalance = walletData.reduce((balance, transaction) => {
-        switch (transaction.transaction_type) {
-          case 'purchase':
-          case 'bid_refund':
-          case 'escrow_release':
-            return balance + transaction.amount
-          case 'bid_hold':
-          case 'escrow_hold':
-            return balance - transaction.amount
-          default:
-            return balance
-        }
-      }, 0)
-    }
+    walletBalance = computeWalletBalance(walletData)
   }
+
+  // Imagery: verified originals are the buyer's source of truth and are shown
+  // first. AI presentation images live in their own labelled section.
+  const { data: lotImages } = await supabase
+    .from('lot_images')
+    .select('*')
+    .eq('lot_id', lot.id)
+    .order('position', { ascending: true })
+
+  const allImages = (lotImages ?? []) as unknown as LotImageRecord[]
+  const originalImages = allImages.filter((image) => image.kind === 'original')
+  const generatedImages = allImages.filter(
+    (image) => image.kind === 'ai_generated' && image.moderation_status !== 'blocked'
+  )
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -101,7 +103,12 @@ export default async function LotDetailPage({ params }: Props) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content - Lot Details */}
           <div className="lg:col-span-2">
-            <LotDetail lot={lot} auction={auction} />
+            <LotDetail
+              lot={lot}
+              auction={auction}
+              originalImages={originalImages}
+              generatedImages={generatedImages}
+            />
           </div>
 
           {/* Sidebar - Bidding & History */}

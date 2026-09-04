@@ -16,6 +16,10 @@ dist/
 
 # Testing
 coverage/
+test-results/
+playwright-report/
+blob-report/
+.playwright/
 
 # Environment files
 .env

@@ -13,7 +13,7 @@ export interface Database {
         Row: {
           id: string
           email: string
-          role: 'bidder' | 'auctioneer' | 'admin'
+          role: 'bidder' | 'auctioneer' | 'admin' | 'driver'
           first_name: string | null
           last_name: string | null
           phone: string | null
@@ -788,11 +788,470 @@ export interface Database {
           updated_at?: string
         }
       }
+      ai_action_prices: {
+        Row: {
+          action_key: string
+          label: string
+          description: string | null
+          category: 'listing' | 'image'
+          credit_cost: number
+          is_enabled: boolean
+          provider: string | null
+          model: string | null
+          rate_limit_per_hour: number
+          sort_order: number
+          updated_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          action_key: string
+          label: string
+          description?: string | null
+          category?: 'listing' | 'image'
+          credit_cost?: number
+          is_enabled?: boolean
+          provider?: string | null
+          model?: string | null
+          rate_limit_per_hour?: number
+          sort_order?: number
+          updated_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          label?: string
+          description?: string | null
+          category?: 'listing' | 'image'
+          credit_cost?: number
+          is_enabled?: boolean
+          provider?: string | null
+          model?: string | null
+          rate_limit_per_hour?: number
+          sort_order?: number
+          updated_by?: string | null
+          updated_at?: string
+        }
+      }
+      ai_quick_list_drafts: {
+        Row: {
+          id: string
+          auctioneer_id: string
+          created_by: string
+          auction_id: string | null
+          status: 'capturing' | 'identifying' | 'needs_selection' | 'draft_ready' | 'approved' | 'discarded' | 'blocked' | 'failed'
+          capture_mode: 'barcode' | 'photo' | 'manual' | 'hybrid'
+          scan_value: string | null
+          scan_format: string | null
+          manual_context: string | null
+          candidates: Json
+          selected_candidate_index: number | null
+          suggested: Json
+          edits: Json
+          confidence: number | null
+          confidence_reasons: Json
+          moderation_status: 'pending' | 'passed' | 'flagged' | 'blocked'
+          moderation_result: Json
+          suggested_starting_bid: number | null
+          suggested_duration_hours: number | null
+          lot_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          error_message: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          auctioneer_id: string
+          created_by: string
+          auction_id?: string | null
+          status?: 'capturing' | 'identifying' | 'needs_selection' | 'draft_ready' | 'approved' | 'discarded' | 'blocked' | 'failed'
+          capture_mode?: 'barcode' | 'photo' | 'manual' | 'hybrid'
+          scan_value?: string | null
+          scan_format?: string | null
+          manual_context?: string | null
+          candidates?: Json
+          selected_candidate_index?: number | null
+          suggested?: Json
+          edits?: Json
+          confidence?: number | null
+          confidence_reasons?: Json
+          moderation_status?: 'pending' | 'passed' | 'flagged' | 'blocked'
+          moderation_result?: Json
+          suggested_starting_bid?: number | null
+          suggested_duration_hours?: number | null
+          lot_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          error_message?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          auction_id?: string | null
+          status?: 'capturing' | 'identifying' | 'needs_selection' | 'draft_ready' | 'approved' | 'discarded' | 'blocked' | 'failed'
+          scan_value?: string | null
+          scan_format?: string | null
+          manual_context?: string | null
+          candidates?: Json
+          selected_candidate_index?: number | null
+          suggested?: Json
+          edits?: Json
+          confidence?: number | null
+          confidence_reasons?: Json
+          moderation_status?: 'pending' | 'passed' | 'flagged' | 'blocked'
+          moderation_result?: Json
+          suggested_starting_bid?: number | null
+          suggested_duration_hours?: number | null
+          lot_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          error_message?: string | null
+          updated_at?: string
+        }
+      }
+      ai_listing_sources: {
+        Row: {
+          id: string
+          draft_id: string
+          source_type: 'barcode' | 'isbn' | 'vision' | 'ocr' | 'catalog' | 'manual'
+          provider: string
+          query: string | null
+          matched: boolean
+          confidence: number | null
+          payload: Json
+          latency_ms: number | null
+          error: string | null
+          fetched_at: string
+        }
+        Insert: {
+          id?: string
+          draft_id: string
+          source_type: 'barcode' | 'isbn' | 'vision' | 'ocr' | 'catalog' | 'manual'
+          provider: string
+          query?: string | null
+          matched?: boolean
+          confidence?: number | null
+          payload?: Json
+          latency_ms?: number | null
+          error?: string | null
+          fetched_at?: string
+        }
+        Update: {
+          matched?: boolean
+          confidence?: number | null
+          payload?: Json
+          error?: string | null
+        }
+      }
+      ai_image_jobs: {
+        Row: {
+          id: string
+          auctioneer_id: string
+          created_by: string
+          draft_id: string | null
+          lot_id: string | null
+          action_key: string
+          variant: 'cleanup' | 'studio' | 'lifestyle'
+          status: 'queued' | 'running' | 'succeeded' | 'failed' | 'blocked'
+          source_image_url: string
+          source_image_id: string | null
+          prompt: string
+          negative_prompt: string | null
+          provider: string
+          model: string | null
+          provider_job_id: string | null
+          provider_payload: Json
+          moderation_status: 'pending' | 'passed' | 'flagged' | 'blocked'
+          moderation_result: Json
+          result_image_id: string | null
+          idempotency_key: string
+          error_message: string | null
+          created_at: string
+          updated_at: string
+          completed_at: string | null
+        }
+        Insert: {
+          id?: string
+          auctioneer_id: string
+          created_by: string
+          draft_id?: string | null
+          lot_id?: string | null
+          action_key: string
+          variant: 'cleanup' | 'studio' | 'lifestyle'
+          status?: 'queued' | 'running' | 'succeeded' | 'failed' | 'blocked'
+          source_image_url: string
+          source_image_id?: string | null
+          prompt: string
+          negative_prompt?: string | null
+          provider: string
+          model?: string | null
+          provider_job_id?: string | null
+          provider_payload?: Json
+          moderation_status?: 'pending' | 'passed' | 'flagged' | 'blocked'
+          moderation_result?: Json
+          result_image_id?: string | null
+          idempotency_key: string
+          error_message?: string | null
+          created_at?: string
+          updated_at?: string
+          completed_at?: string | null
+        }
+        Update: {
+          lot_id?: string | null
+          status?: 'queued' | 'running' | 'succeeded' | 'failed' | 'blocked'
+          provider_job_id?: string | null
+          provider_payload?: Json
+          moderation_status?: 'pending' | 'passed' | 'flagged' | 'blocked'
+          moderation_result?: Json
+          result_image_id?: string | null
+          error_message?: string | null
+          updated_at?: string
+          completed_at?: string | null
+        }
+      }
+      lot_images: {
+        Row: {
+          id: string
+          lot_id: string | null
+          draft_id: string | null
+          kind: 'original' | 'ai_generated'
+          bucket: string
+          storage_path: string
+          public_url: string
+          position: number
+          is_primary: boolean
+          checksum_sha256: string | null
+          byte_size: number | null
+          mime_type: string | null
+          width: number | null
+          height: number | null
+          variant: 'cleanup' | 'studio' | 'lifestyle' | null
+          source_image_id: string | null
+          prompt: string | null
+          negative_prompt: string | null
+          provider: string | null
+          model: string | null
+          provider_job_id: string | null
+          image_job_id: string | null
+          generation_metadata: Json
+          disclosure_label: string | null
+          moderation_status: 'pending' | 'passed' | 'flagged' | 'blocked'
+          moderation_result: Json
+          credit_ledger_id: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          lot_id?: string | null
+          draft_id?: string | null
+          kind: 'original' | 'ai_generated'
+          bucket: string
+          storage_path: string
+          public_url: string
+          position?: number
+          is_primary?: boolean
+          checksum_sha256?: string | null
+          byte_size?: number | null
+          mime_type?: string | null
+          width?: number | null
+          height?: number | null
+          variant?: 'cleanup' | 'studio' | 'lifestyle' | null
+          source_image_id?: string | null
+          prompt?: string | null
+          negative_prompt?: string | null
+          provider?: string | null
+          model?: string | null
+          provider_job_id?: string | null
+          image_job_id?: string | null
+          generation_metadata?: Json
+          disclosure_label?: string | null
+          moderation_status?: 'pending' | 'passed' | 'flagged' | 'blocked'
+          moderation_result?: Json
+          credit_ledger_id?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          lot_id?: string | null
+          position?: number
+          is_primary?: boolean
+          disclosure_label?: string | null
+          moderation_status?: 'pending' | 'passed' | 'flagged' | 'blocked'
+          moderation_result?: Json
+        }
+      }
+      ai_credit_ledger: {
+        Row: {
+          id: string
+          user_id: string
+          auctioneer_id: string | null
+          action_key: string
+          credit_cost: number
+          status: 'pending' | 'charged' | 'refunded' | 'voided' | 'failed'
+          idempotency_key: string
+          draft_id: string | null
+          lot_id: string | null
+          image_job_id: string | null
+          provider: string | null
+          provider_job_id: string | null
+          wallet_ledger_id: string | null
+          refund_wallet_ledger_id: string | null
+          refunded_at: string | null
+          refund_reason: string | null
+          failure_reason: string | null
+          request_metadata: Json
+          result_metadata: Json
+          charged_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          auctioneer_id?: string | null
+          action_key: string
+          credit_cost: number
+          status?: 'pending' | 'charged' | 'refunded' | 'voided' | 'failed'
+          idempotency_key: string
+          draft_id?: string | null
+          lot_id?: string | null
+          image_job_id?: string | null
+          provider?: string | null
+          provider_job_id?: string | null
+          request_metadata?: Json
+          result_metadata?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          status?: 'pending' | 'charged' | 'refunded' | 'voided' | 'failed'
+          lot_id?: string | null
+          provider?: string | null
+          provider_job_id?: string | null
+          wallet_ledger_id?: string | null
+          refund_wallet_ledger_id?: string | null
+          refunded_at?: string | null
+          refund_reason?: string | null
+          failure_reason?: string | null
+          result_metadata?: Json
+          charged_at?: string | null
+          updated_at?: string
+        }
+      }
+      ai_moderation_events: {
+        Row: {
+          id: string
+          subject_type: 'draft' | 'image_job' | 'text'
+          subject_id: string | null
+          user_id: string | null
+          provider: string
+          status: 'passed' | 'flagged' | 'blocked'
+          categories: Json
+          raw: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          subject_type: 'draft' | 'image_job' | 'text'
+          subject_id?: string | null
+          user_id?: string | null
+          provider: string
+          status: 'passed' | 'flagged' | 'blocked'
+          categories?: Json
+          raw?: Json
+          created_at?: string
+        }
+        Update: {
+          status?: 'passed' | 'flagged' | 'blocked'
+          categories?: Json
+          raw?: Json
+        }
+      }
+      ai_prohibited_terms: {
+        Row: {
+          id: string
+          term: string
+          category: string
+          severity: 'block' | 'flag'
+          is_active: boolean
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          term: string
+          category?: string
+          severity?: 'block' | 'flag'
+          is_active?: boolean
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          term?: string
+          category?: string
+          severity?: 'block' | 'flag'
+          is_active?: boolean
+          notes?: string | null
+        }
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      ai_available_credits: {
+        Args: {
+          p_user_id: string
+        }
+        Returns: number
+      }
+      ai_check_rate_limit: {
+        Args: {
+          p_user_id: string
+          p_action_key: string
+          p_max_per_hour: number
+        }
+        Returns: Json
+      }
+      ai_begin_action: {
+        Args: {
+          p_user_id: string
+          p_action_key: string
+          p_idempotency_key: string
+          p_auctioneer_id?: string | null
+          p_draft_id?: string | null
+          p_lot_id?: string | null
+          p_image_job_id?: string | null
+          p_request_metadata?: Json
+        }
+        Returns: Json
+      }
+      ai_settle_action: {
+        Args: {
+          p_ledger_id: string
+          p_provider?: string | null
+          p_provider_job_id?: string | null
+          p_result_metadata?: Json
+        }
+        Returns: Json
+      }
+      ai_void_action: {
+        Args: {
+          p_ledger_id: string
+          p_reason?: string | null
+        }
+        Returns: Json
+      }
+      ai_refund_action: {
+        Args: {
+          p_ledger_id: string
+          p_reason?: string | null
+        }
+        Returns: Json
+      }
       get_wallet_balance: {
         Args: {
           user_uuid: string
@@ -907,7 +1366,7 @@ export interface Database {
       user_role: 'bidder' | 'auctioneer' | 'admin'
       auction_status: 'draft' | 'scheduled' | 'live' | 'ended' | 'completed'
       bid_type: 'regular' | 'proxy'
-      transaction_type: 'purchase' | 'bid_hold' | 'bid_refund' | 'escrow_hold' | 'escrow_release' | 'payout'
+      transaction_type: 'purchase' | 'bid_hold' | 'bid_refund' | 'escrow_hold' | 'escrow_release' | 'payout' | 'ai_spend' | 'ai_refund'
     }
     CompositeTypes: {
       [_ in never]: never
@@ -935,3 +1394,11 @@ export type UserInterest = Database['public']['Tables']['user_interests']['Row']
 export type UserDeviceToken = Database['public']['Tables']['user_device_tokens']['Row']
 export type NotificationBatch = Database['public']['Tables']['notification_batches']['Row']
 export type FeatureFlag = Database['public']['Tables']['feature_flags']['Row']
+export type AiActionPriceRow = Database['public']['Tables']['ai_action_prices']['Row']
+export type AiQuickListDraftRow = Database['public']['Tables']['ai_quick_list_drafts']['Row']
+export type AiListingSource = Database['public']['Tables']['ai_listing_sources']['Row']
+export type AiImageJob = Database['public']['Tables']['ai_image_jobs']['Row']
+export type LotImage = Database['public']['Tables']['lot_images']['Row']
+export type AiCreditLedger = Database['public']['Tables']['ai_credit_ledger']['Row']
+export type AiModerationEvent = Database['public']['Tables']['ai_moderation_events']['Row']
+export type AiProhibitedTerm = Database['public']['Tables']['ai_prohibited_terms']['Row']

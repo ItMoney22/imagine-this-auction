@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { walletEntryDelta, walletEntryLabel } from '@/lib/wallet/balance'
 
 export async function GET(request: NextRequest) {
   try {
@@ -32,40 +33,16 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Calculate balance using correct column names
+    // Calculate balance using the shared sign table so every transaction type
+    // (including AI spend/refund) is accounted for in exactly one place.
     let balance = 0
     const processedTransactions = []
 
     for (const transaction of transactions || []) {
-      let description = transaction.description || ''
+      const description =
+        transaction.description || walletEntryLabel(transaction.transaction_type)
 
-      switch (transaction.transaction_type) {
-        case 'purchase':
-        case 'bid_refund':
-        case 'escrow_release':
-          balance += transaction.amount
-          if (!description) {
-            description = transaction.transaction_type === 'purchase'
-              ? 'Credit purchase'
-              : transaction.transaction_type === 'bid_refund'
-              ? 'Bid refund'
-              : 'Escrow release'
-          }
-          break
-
-        case 'bid_hold':
-        case 'escrow_hold':
-          balance -= transaction.amount
-          if (!description) {
-            description = transaction.transaction_type === 'bid_hold'
-              ? 'Bid placed'
-              : 'Escrow hold'
-          }
-          break
-
-        default:
-          console.warn(`Unknown wallet transaction type: ${transaction.transaction_type}`)
-      }
+      balance += walletEntryDelta(transaction)
 
       processedTransactions.push({
         id: transaction.id,

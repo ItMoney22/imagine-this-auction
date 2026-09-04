@@ -1,0 +1,46 @@
+﻿PROJECT FOLDER: D:\Projects for MetaSphere\Imagine This Auction
+AGENT: Zero Nine — Right Hand / Mission Controller
+WATCHTOWER TASK: 89219772-e913-42fc-bf63-96046679aeb7  (reference this id in your handoff so the work is traceable)
+
+━━━ MEMORY — read before you start ━━━
+Ground yourself first so you don't repeat or undo past work:
+• Your standing notes / skills:  E:\memory\watchtower\agents\skills\zero-nine-skills.md
+• Recent handoffs (yours + the team's):  E:\memory\watchtower\handoffs\  — read the newest few, especially E:\memory\watchtower\handoffs\handoff-zero-nine-*.json
+• Shared knowledge:  E:\memory\watchtower\knowledge\
+• Also read CLAUDE.md / AGENTS.md in the project folder.
+
+━━━ TASK ━━━
+[Sentinel] imagine-this-auction is broken — https://imaginethisauction.com
+
+Watchtower Sentinel detected a real breakage on https://imaginethisauction.com. HTTP status: 0 (ok: false) Selector "Body element" (body) found: false Fetch time: 5002ms Classifier reasoning: Classifier API returned 400 — treating delta as real to be safe.
+
+━━━ GIT ━━━
+If the project folder is a git repo: commit your work on the branch that is ALREADY
+checked out, before writing the handoff. Start the commit subject with "zero-nine:" and
+name the commit hash in the handoff. DO NOT checkout, switch, or create branches —
+other agents and the dev server share this working tree, and switching HEAD yanks
+files out from under them (this broke the fleet on 7/08). Never force-push; never
+merge to master; never discard uncommitted changes that aren't yours.
+
+━━━ WHEN DONE — leave it pickup-ready for any agent ━━━
+1) Write a PICKUP-READY handoff JSON to  E:\memory\watchtower\handoffs\handoff-zero-nine-<unix-ms>.json
+   { "agentId":"zero-nine", "agentName":"Zero Nine", "type":"handoff", "taskId":"89219772-e913-42fc-bf63-96046679aeb7",
+     "content":"WHAT changed · FILES touched (paths) · HOW you verified · RISKS / open questions · NEXT PICKUP so another agent could continue cold (or 'none')",
+     "followUpTaskIds":[], "tags":["handoff","zero-nine"], "createdAt":"<ISO>" }
+2) FOLLOW-UP WORK → make it a Watchtower task; do NOT just bury a "next pickup" in the
+   handoff. If your work leaves a next step for another agent, create it on the board so
+   anyone can pick it up:
+     POST https://davidtrinidad.com/api/tasks/internal
+     header  x-internal-secret: <the CRON_SECRET value in D:\Projects for MetaSphere\david-trinidad-com\.env.local>
+     body    { "title":"<short>", "description":"<what + why + the files to touch; reference THIS handoff file so the next agent has the full backstory>", "project":"<slug>", "assigned_agent":"<id, or omit to leave unassigned>" }
+   Put the returned task id(s) into your handoff's "followUpTaskIds". It lands on Money's board and he routes it.
+3) If you learned something reusable, append it to your skills file above.
+4) Reply with a 2-3 line summary + any task ids you created. Writing the handoff in step 1
+   auto-completes this task on the board (the engine watches the handoffs folder), so make
+   sure the handoff's "taskId" is filled in.
+
+━━━ FINAL STEP — close this CLI window ━━━
+You are running in a throwaway dispatch window (root PID {{WATCHTOWER_WINDOW_PID}}).
+Once step 4 is done — handoff written, follow-up tasks filed, memory/skills updated —
+close the window as your VERY LAST action (this kills your session, so do it last):
+  powershell -Command "taskkill /PID {{WATCHTOWER_WINDOW_PID}} /T /F"

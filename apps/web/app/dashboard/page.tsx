@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { formatCurrency } from '@/lib/utils'
+import { computeWalletBalance } from '@/lib/wallet/balance'
 import { Trophy, Wallet, Gavel, Eye } from 'lucide-react'
 
 export default async function DashboardPage() {
@@ -62,20 +63,7 @@ export default async function DashboardPage() {
       .limit(5),
   ])
 
-  const walletBalance = (walletEntries || []).reduce((balance, entry) => {
-    switch (entry.transaction_type) {
-      case 'purchase':
-      case 'bid_refund':
-      case 'escrow_release':
-        return balance + entry.amount
-      case 'bid_hold':
-      case 'escrow_hold':
-      case 'payout':
-        return balance - entry.amount
-      default:
-        return balance
-    }
-  }, 0)
+  const walletBalance = computeWalletBalance(walletEntries)
 
   const now = new Date()
   const activeLotIds = new Set<string>()

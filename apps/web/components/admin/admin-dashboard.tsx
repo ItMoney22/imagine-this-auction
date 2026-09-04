@@ -13,8 +13,10 @@ import AuctioneerManager from './auctioneer-manager'
 import FinancialReports from './financial-reports'
 import ComplianceManager from './compliance-manager'
 import NotificationManager from './notification-manager'
+import AiControls from './ai-controls'
+import DeliveryManager from './delivery-manager'
 
-type AdminTab = 'overview' | 'users' | 'auctioneers' | 'financials' | 'compliance' | 'notifications' | 'invoices' | 'payouts'
+type AdminTab = 'overview' | 'users' | 'auctioneers' | 'financials' | 'compliance' | 'notifications' | 'ai' | 'invoices' | 'payouts' | 'deliveries'
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview')
@@ -26,8 +28,10 @@ export default function AdminDashboard() {
     { id: 'financials' as AdminTab, name: 'Financials', description: 'Revenue and financial reporting' },
     { id: 'compliance' as AdminTab, name: 'Compliance', description: 'KYC and fraud prevention' },
     { id: 'notifications' as AdminTab, name: 'Notifications', description: 'System announcements and alerts' },
+    { id: 'ai' as AdminTab, name: 'AI', description: 'AI credit prices and spend ledger' },
     { id: 'invoices' as AdminTab, name: 'Invoices', description: 'Invoice and escrow management' },
     { id: 'payouts' as AdminTab, name: 'Payouts', description: 'Auctioneer payout processing' },
+    { id: 'deliveries' as AdminTab, name: 'Deliveries', description: 'Local delivery tracking and drivers' },
   ]
 
   return (
@@ -83,8 +87,36 @@ export default function AdminDashboard() {
             <NotificationManager />
           </div>
         )}
+        {activeTab === 'ai' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
+              <span>Quick List credit prices, rate limits and the full AI spend audit trail.</span>
+              <Link
+                href="/admin/ai"
+                className="font-semibold text-indigo-700 hover:text-indigo-900"
+              >
+                Open full AI console →
+              </Link>
+            </div>
+            <AiControls />
+          </div>
+        )}
         {activeTab === 'invoices' && <InvoiceManager />}
         {activeTab === 'payouts' && <PayoutManager />}
+        {activeTab === 'deliveries' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
+              <span>Full-screen tracking board with map view and driver roster.</span>
+              <Link
+                href="/admin/deliveries"
+                className="font-semibold text-indigo-700 hover:text-indigo-900"
+              >
+                Open Delivery Tracking →
+              </Link>
+            </div>
+            <DeliveryManager />
+          </div>
+        )}
       </div>
     </div>
   )

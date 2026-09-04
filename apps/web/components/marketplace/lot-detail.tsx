@@ -1,16 +1,12 @@
 'use client'
 
-import { useState } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import {
   ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
   Package,
   MapPin,
   Calendar,
@@ -19,39 +15,35 @@ import {
   Box,
 } from 'lucide-react'
 import { WatchButton } from '@/components/marketplace/watch-button'
+import { LotImageGallery } from '@/components/marketplace/lot-image-gallery'
+import type { LotImageRecord } from '@/lib/ai/quick-listing'
 
 interface LotDetailProps {
   lot: any
   auction: any
+  /** Verified, unaltered buyer-facing photos. */
+  originalImages?: LotImageRecord[]
+  /** AI presentation mockups — never the item's evidence. */
+  generatedImages?: LotImageRecord[]
 }
 
-export function LotDetail({ lot, auction }: LotDetailProps) {
-  const [currentImageIndex, setCurrentImageIndex] = useState(0)
-  const [imageError, setImageError] = useState<Set<number>>(new Set())
-
-  // Parse images - handle both JSON string and array formats
-  let images: string[] = []
+export function LotDetail({
+  lot,
+  auction,
+  originalImages = [],
+  generatedImages = [],
+}: LotDetailProps) {
+  // Legacy fallback: lots created before lot_images existed keep their URLs on
+  // `lots.images`. Those uploads were never AI-touched, so they are originals.
+  let legacyImages: string[] = []
   try {
     if (typeof lot.images === 'string') {
-      images = JSON.parse(lot.images)
+      legacyImages = JSON.parse(lot.images)
     } else if (Array.isArray(lot.images)) {
-      images = lot.images
+      legacyImages = lot.images
     }
   } catch {
-    images = []
-  }
-  const hasImages = images.length > 0
-
-  const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % images.length)
-  }
-
-  const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length)
-  }
-
-  const handleImageError = (index: number) => {
-    setImageError(prev => new Set([...prev, index]))
+    legacyImages = []
   }
 
   return (
@@ -114,93 +106,13 @@ export function LotDetail({ lot, auction }: LotDetailProps) {
         </CardHeader>
       </Card>
 
-      {/* Images */}
-      <Card>
-        <CardContent className="p-0">
-          {hasImages ? (
-            <div className="relative">
-              {/* Main image */}
-              <div className="relative aspect-square overflow-hidden rounded-t-lg bg-gray-100 md:aspect-video">
-                {!imageError.has(currentImageIndex) ? (
-                  <Image
-                    src={images[currentImageIndex]}
-                    alt={`${lot.title} - Image ${currentImageIndex + 1}`}
-                    fill
-                    unoptimized
-                    sizes="(max-width: 768px) 100vw, 66vw"
-                    className="object-cover"
-                    onError={() => handleImageError(currentImageIndex)}
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Package className="h-16 w-16 text-gray-400" />
-                  </div>
-                )}
-              </div>
-
-              {/* Navigation arrows */}
-              {images.length > 1 && (
-                <>
-                  <button
-                    onClick={prevImage}
-                    className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
-                  >
-                    <ChevronLeft className="h-5 w-5" />
-                  </button>
-                  <button
-                    onClick={nextImage}
-                    className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
-                  >
-                    <ChevronRight className="h-5 w-5" />
-                  </button>
-                </>
-              )}
-
-              {/* Image counter */}
-              {images.length > 1 && (
-                <div className="absolute bottom-4 right-4 bg-black/60 text-white text-sm px-3 py-1 rounded">
-                  {currentImageIndex + 1} / {images.length}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="aspect-square md:aspect-video bg-gray-100 rounded-t-lg flex items-center justify-center">
-              <Package className="h-16 w-16 text-gray-400" />
-            </div>
-          )}
-
-          {/* Thumbnail strip */}
-          {images.length > 1 && (
-            <div className="flex gap-2 p-4 overflow-x-auto">
-              {images.map((image, index) => (
-                <button
-                  key={index}
-                  onClick={() => setCurrentImageIndex(index)}
-                  className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${
-                    index === currentImageIndex ? 'border-blue-600' : 'border-gray-200'
-                  }`}
-                >
-                  {!imageError.has(index) ? (
-                    <Image
-                      src={image}
-                      alt={`Thumbnail ${index + 1}`}
-                      width={64}
-                      height={64}
-                      unoptimized
-                      className="h-full w-full object-cover"
-                      onError={() => handleImageError(index)}
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                      <Package className="h-6 w-6 text-gray-400" />
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Images — verified originals first and by default */}
+      <LotImageGallery
+        title={lot.title}
+        originalImages={originalImages}
+        generatedImages={generatedImages}
+        legacyImageUrls={legacyImages}
+      />
 
       {/* Description */}
       <Card>
