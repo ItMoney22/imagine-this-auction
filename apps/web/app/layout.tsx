@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/navigation/navbar";
+import { Footer } from "@/components/navigation/footer";
 import { Toaster } from "@/components/ui/toast";
 import { createClient } from "@/lib/supabase/server";
 
@@ -59,6 +60,7 @@ export default async function RootLayout({
           <main className="relative z-10">
             {children}
           </main>
+          <Footer />
           <Toaster />
         </div>
       </body>

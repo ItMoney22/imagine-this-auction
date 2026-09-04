@@ -44,6 +44,7 @@ export function Navbar({ user }: NavbarProps) {
     { href: '/lots', label: 'Browse Lots' },
     { href: '/leaderboard', label: 'Leaderboard' },
     { href: '/how-it-works', label: 'How It Works' },
+    { href: '/pricing', label: 'Pricing' },
   ]
 
   return (

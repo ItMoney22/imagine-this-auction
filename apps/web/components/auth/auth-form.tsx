@@ -29,6 +29,17 @@ export function AuthForm({ mode, redirectTo }: AuthFormProps) {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [authMode, setAuthMode] = useState<'magic' | 'password'>('password') // Default to password for demo
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
+
+  // Signup only: the Terms of Service / Privacy Policy checkbox must be ticked
+  // before either form can submit. Login never shows it.
+  const requiresTerms = mode === 'signup'
+  const termsBlocked = requiresTerms && !acceptedTerms
+  const TERMS_ERROR = 'Please agree to the Terms of Service and Privacy Policy to create an account.'
+
+  // Stored in auth.users.raw_user_meta_data; migration 019b copies it onto
+  // public.users.terms_accepted_at when the profile row is created.
+  const signupMetadata = () => ({ terms_accepted_at: new Date().toISOString() })
 
   const supabase = createClient()
 
@@ -41,6 +52,11 @@ export function AuthForm({ mode, redirectTo }: AuthFormProps) {
   })
 
   const onMagicLinkSubmit = async (data: MagicLinkForm) => {
+    if (termsBlocked) {
+      setError(TERMS_ERROR)
+      return
+    }
+
     setIsLoading(true)
     setMessage(null)
     setError(null)
@@ -50,6 +66,7 @@ export function AuthForm({ mode, redirectTo }: AuthFormProps) {
         email: data.email,
         options: {
           emailRedirectTo: redirectTo || `${window.location.origin}/auth/callback`,
+          ...(requiresTerms ? { data: signupMetadata() } : {}),
         },
       })
 
@@ -66,6 +83,11 @@ export function AuthForm({ mode, redirectTo }: AuthFormProps) {
   }
 
   const onPasswordSubmit = async (data: PasswordForm) => {
+    if (termsBlocked) {
+      setError(TERMS_ERROR)
+      return
+    }
+
     setIsLoading(true)
     setMessage(null)
     setError(null)
@@ -84,6 +106,7 @@ export function AuthForm({ mode, redirectTo }: AuthFormProps) {
           password: data.password,
           options: {
             emailRedirectTo: redirectTo || `${window.location.origin}/auth/callback`,
+            data: signupMetadata(),
           },
         })
         authError = result.error
@@ -104,6 +127,30 @@ export function AuthForm({ mode, redirectTo }: AuthFormProps) {
       setIsLoading(false)
     }
   }
+
+  const termsCheckbox = requiresTerms ? (
+    <div className="flex items-start gap-3">
+      <input
+        id="accept-terms"
+        type="checkbox"
+        checked={acceptedTerms}
+        onChange={(event) => setAcceptedTerms(event.target.checked)}
+        required
+        aria-required="true"
+        className="mt-1 h-4 w-4 flex-shrink-0 rounded border-gray-300 accent-blue-600 focus:ring-blue-500"
+      />
+      <label htmlFor="accept-terms" className="text-sm text-gray-600">
+        I agree to the{' '}
+        <Link href="/terms" className="font-medium text-blue-600 hover:text-blue-500" target="_blank" rel="noopener noreferrer">
+          Terms of Service
+        </Link>{' '}
+        and{' '}
+        <Link href="/privacy" className="font-medium text-blue-600 hover:text-blue-500" target="_blank" rel="noopener noreferrer">
+          Privacy Policy
+        </Link>
+      </label>
+    </div>
+  ) : null
 
   return (
     <div className="w-full max-w-md mx-auto">
@@ -188,9 +235,11 @@ export function AuthForm({ mode, redirectTo }: AuthFormProps) {
               </div>
             )}
 
+            {termsCheckbox}
+
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || termsBlocked}
               className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (mode === 'login' ? 'Signing in...' : 'Creating account...') : (mode === 'login' ? 'Sign In' : 'Sign Up')}
@@ -214,9 +263,11 @@ export function AuthForm({ mode, redirectTo }: AuthFormProps) {
               )}
             </div>
 
+            {termsCheckbox}
+
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || termsBlocked}
               className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? 'Sending...' : 'Send Magic Link'}
