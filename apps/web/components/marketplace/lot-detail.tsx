@@ -4,9 +4,11 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { formatUsd, premiumPercentForAuction } from '@/lib/pricing/premium'
 import {
   ArrowLeft,
+  Gavel,
   Package,
   MapPin,
   Calendar,
@@ -16,6 +18,7 @@ import {
 } from 'lucide-react'
 import { WatchButton } from '@/components/marketplace/watch-button'
 import { LotImageGallery } from '@/components/marketplace/lot-image-gallery'
+import { PremiumDisclosure } from '@/components/marketplace/premium-disclosure'
 import type { LotImageRecord } from '@/lib/ai/quick-listing'
 
 interface LotDetailProps {
@@ -45,6 +48,12 @@ export function LotDetail({
   } catch {
     legacyImages = []
   }
+
+  // What a bidder is looking at right now: the high bid if there is one,
+  // otherwise the opening bid. The premium percent is the auction's own.
+  const hasBids = Number(lot.bid_count) > 0 && Number(lot.current_high_bid) > 0
+  const hammerCents = hasBids ? Number(lot.current_high_bid) : Number(lot.starting_bid) || 0
+  const premiumPct = premiumPercentForAuction(auction)
 
   return (
     <div className="space-y-6">
@@ -83,6 +92,21 @@ export function LotDetail({
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
                 {lot.title}
               </h1>
+              <div className="mt-4 flex items-center">
+                <Gavel className="h-5 w-5 text-gray-400 mr-3" aria-hidden="true" />
+                <div>
+                  <div className="text-sm text-gray-600">{hasBids ? 'Current Bid' : 'Opening Bid'}</div>
+                  <div className="text-2xl font-bold text-gray-900 tabular-nums">
+                    {formatUsd(hammerCents)}
+                  </div>
+                </div>
+              </div>
+              <PremiumDisclosure
+                className="mt-3"
+                hammerCents={hammerCents}
+                premiumPct={premiumPct}
+                bidLabel={hasBids ? 'current bid' : 'opening bid'}
+              />
             </div>
 
             <div className="flex items-center gap-2 self-start flex-wrap">
@@ -98,7 +122,7 @@ export function LotDetail({
               )}
               {lot.reserve_price && (
                 <Badge variant="destructive">
-                  Reserve: {formatCurrency(lot.reserve_price)}
+                  Reserve: {formatUsd(lot.reserve_price)}
                 </Badge>
               )}
             </div>
@@ -138,7 +162,7 @@ export function LotDetail({
                 <DollarSign className="h-5 w-5 text-gray-400 mr-3" />
                 <div>
                   <div className="text-sm text-gray-600">Starting Price</div>
-                  <div className="font-medium">{formatCurrency(lot.starting_bid)}</div>
+                  <div className="font-medium">{formatUsd(lot.starting_bid)}</div>
                 </div>
               </div>
 
@@ -146,7 +170,7 @@ export function LotDetail({
                 <TrendingUp className="h-5 w-5 text-gray-400 mr-3" />
                 <div>
                   <div className="text-sm text-gray-600">Bid Increment</div>
-                  <div className="font-medium">{formatCurrency(lot.increment)}</div>
+                  <div className="font-medium">{formatUsd(lot.increment)}</div>
                 </div>
               </div>
 
@@ -156,7 +180,7 @@ export function LotDetail({
                   <div>
                     <div className="text-sm text-gray-600">Reserve Price</div>
                     <div className="font-medium text-red-600">
-                      {formatCurrency(lot.reserve_price)}
+                      {formatUsd(lot.reserve_price)}
                     </div>
                   </div>
                 </div>

@@ -4,23 +4,33 @@ import {
   ArrowRight,
   CheckCircle2,
   Gavel,
-  Search,
-  Users,
   Zap,
   Clock3,
   Smartphone,
-  BarChart3,
   Layers,
   DollarSign,
-  Star,
-  Wallet,
-  ShieldCheck,
   ArrowUpRight,
   Package,
-  TrendingUp,
+  CreditCard,
+  Receipt,
+  Truck,
+  BadgeCheck,
+  FileCheck,
+  Landmark,
+  Camera,
+  Banknote,
+  UserPlus,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { computePremiumCents, computeTotalCents, formatUsd } from '@/lib/pricing/premium'
+
+// Worked example for the "what you pay" card. The math is the same function
+// the lot page and the invoice use, so the example can never drift from it.
+const EXAMPLE_HAMMER_CENTS = 10_000
+const EXAMPLE_PREMIUM_PCT = 10
+const examplePremiumCents = computePremiumCents(EXAMPLE_HAMMER_CENTS, EXAMPLE_PREMIUM_PCT)
+const exampleTotalCents = computeTotalCents(EXAMPLE_HAMMER_CENTS, EXAMPLE_PREMIUM_PCT)
 
 export default function HowItWorksPage() {
   return (
@@ -35,7 +45,7 @@ export default function HowItWorksPage() {
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <Badge className="mb-6 bg-white/10 text-white/90 border border-white/20 backdrop-blur-md px-5 py-2 text-[11px] tracking-[0.25em]">
             <Zap className="w-3.5 h-3.5 mr-2 text-yellow-400" />
-            Simple, Transparent, Powerful
+            Every Fee, On Every Lot, Before You Bid
           </Badge>
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-display font-bold leading-[0.95] tracking-tight text-white">
             How It
@@ -44,7 +54,8 @@ export default function HowItWorksPage() {
             </span>
           </h1>
           <p className="mt-8 text-xl lg:text-2xl text-white/80 max-w-2xl mx-auto leading-relaxed">
-            Whether you&apos;re bidding on treasures or selling your inventory, we&apos;ve made every step effortless.
+            Bidders keep a card on file and pay only when they win. Auctioneers sell on their own merchant
+            account and pay one small platform fee a month. Here is each step.
           </p>
         </div>
       </section>
@@ -57,12 +68,12 @@ export default function HowItWorksPage() {
               For Bidders
             </Badge>
             <h2 className="text-4xl sm:text-5xl font-display font-bold text-slate-900 leading-tight">
-              Find, Bid, Win.
-              <span className="bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent"> That Simple.</span>
+              Register, Bid, Win.
+              <span className="bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent"> Pay Only If You Win.</span>
             </h2>
           </div>
 
-          {/* Step 1 - Browse */}
+          {/* Step 1 - Register with a card */}
           <div className="grid lg:grid-cols-2 gap-16 items-center mb-24">
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-3xl blur-2xl opacity-20 scale-95" />
@@ -73,16 +84,18 @@ export default function HowItWorksPage() {
             <div>
               <div className="flex items-center gap-4 mb-6">
                 <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-500 text-white shadow-lg shadow-purple-500/20">
-                  <Search className="w-6 h-6" />
+                  <CreditCard className="w-6 h-6" />
                 </div>
                 <span className="text-7xl font-display font-bold text-slate-100 select-none">01</span>
               </div>
-              <h3 className="text-3xl font-display font-bold text-slate-900 mb-4">Browse & Discover</h3>
+              <h3 className="text-3xl font-display font-bold text-slate-900 mb-4">Register With a Card</h3>
               <p className="text-lg text-slate-600 mb-6 leading-relaxed">
-                Explore live auctions from verified auctioneers. Filter by category, price range, or ending soon. Every item has detailed photos, descriptions, and condition reports.
+                Create a free account and put a card on file. Nothing is charged when you register or when you
+                bid. The card is only charged if you win. Then browse lots from licensed auctioneers, with photos,
+                descriptions, and the buyer&apos;s premium shown on every one.
               </p>
               <ul className="space-y-3">
-                {['Live and timed auctions', 'Verified auctioneers only', 'Detailed item descriptions & photos'].map((item) => (
+                {['Free to register, free to bid', 'Licensed auctioneers, reviewed before listing', 'Photos and descriptions on every lot'].map((item) => (
                   <li key={item} className="flex items-center gap-3 text-slate-700">
                     <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
                     {item}
@@ -92,35 +105,23 @@ export default function HowItWorksPage() {
             </div>
           </div>
 
-          {/* Step 2 - Load ITC */}
+          {/* Step 2 - Bid */}
           <div className="grid lg:grid-cols-2 gap-16 items-center mb-24">
             <div className="order-2 lg:order-1">
               <div className="flex items-center gap-4 mb-6">
                 <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-500 text-white shadow-lg shadow-purple-500/20">
-                  <Zap className="w-6 h-6" />
+                  <Gavel className="w-6 h-6" />
                 </div>
                 <span className="text-7xl font-display font-bold text-slate-100 select-none">02</span>
               </div>
-              <h3 className="text-3xl font-display font-bold text-slate-900 mb-4">Load ITC Credits for Instant Bids</h3>
+              <h3 className="text-3xl font-display font-bold text-slate-900 mb-4">Place Your Bid</h3>
               <p className="text-lg text-slate-600 mb-6 leading-relaxed">
-                Pre-load your wallet with ITC credits and bid instantly — no payment delays, no missed lots. When seconds count in a live auction, ITC gives you the speed advantage.
+                Bid the next increment, or set a maximum and let proxy bidding raise you only as far as it has to.
+                Every lot tells you the buyer&apos;s premium and your all-in total for the bid on screen. A bid placed
+                near the close extends the auction, so no one wins by being last instead of highest.
               </p>
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                {[
-                  { amount: '100 ITC', price: '$9.99', bonus: '' },
-                  { amount: '275 ITC', price: '$24.99', bonus: '10% bonus' },
-                  { amount: '600 ITC', price: '$49.99', bonus: '20% bonus' },
-                  { amount: '1,300 ITC', price: '$99.99', bonus: '30% bonus' },
-                ].map((pack) => (
-                  <div key={pack.amount} className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-purple-300 transition-colors">
-                    <p className="text-lg font-bold text-slate-900">{pack.amount}</p>
-                    <p className="text-sm text-slate-600">{pack.price}</p>
-                    {pack.bonus && <span className="inline-block mt-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">{pack.bonus}</span>}
-                  </div>
-                ))}
-              </div>
               <ul className="space-y-3">
-                {['Instant bid placement — no checkout delays', 'Bonus credits on larger packs', 'Secure, encrypted transactions'].map((item) => (
+                {['Total shown before you bid', 'Proxy bidding up to your maximum', 'Anti-sniping time extensions', 'Bid from any device'].map((item) => (
                   <li key={item} className="flex items-center gap-3 text-slate-700">
                     <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
                     {item}
@@ -132,27 +133,36 @@ export default function HowItWorksPage() {
               <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-3xl blur-2xl opacity-20 scale-95" />
               <div className="relative p-10 lg:p-12 rounded-3xl bg-gradient-to-br from-slate-900 via-[#1a0b3e] to-slate-900 overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl" />
-                <div className="relative text-center">
-                  <Zap className="w-16 h-16 text-yellow-400 mx-auto mb-6" />
-                  <h4 className="text-2xl font-display font-bold text-white mb-3">Speed = Wins</h4>
-                  <p className="text-white/70 mb-8">Pre-loaded ITC credits let you bid the instant you see the right item. No fumbling with payment forms while someone else snags your lot.</p>
-                  <div className="flex items-center justify-center gap-6">
-                    <div className="text-center">
-                      <p className="text-3xl font-bold text-white">0.1s</p>
-                      <p className="text-xs text-white/50 uppercase tracking-wider mt-1">ITC Bid Time</p>
+                <div className="relative">
+                  <Receipt className="w-12 h-12 text-yellow-400 mb-6" />
+                  <h4 className="text-2xl font-display font-bold text-white mb-3">What you pay if you win</h4>
+                  <p className="text-white/70 mb-8">
+                    Example lot with a {EXAMPLE_PREMIUM_PCT}% buyer&apos;s premium. The auctioneer sets the premium
+                    for each auction; the exact figure is on every lot page.
+                  </p>
+                  <div className="space-y-3 text-sm tabular-nums">
+                    <div className="flex justify-between text-white/80">
+                      <span>Winning bid (hammer)</span>
+                      <span>{formatUsd(EXAMPLE_HAMMER_CENTS)}</span>
                     </div>
-                    <div className="h-12 w-px bg-white/20" />
-                    <div className="text-center">
-                      <p className="text-3xl font-bold text-red-400">30s+</p>
-                      <p className="text-xs text-white/50 uppercase tracking-wider mt-1">Card Checkout</p>
+                    <div className="flex justify-between text-white/80">
+                      <span>Buyer&apos;s premium, {EXAMPLE_PREMIUM_PCT}%</span>
+                      <span>{formatUsd(examplePremiumCents)}</span>
+                    </div>
+                    <div className="flex justify-between pt-3 border-t border-white/10 text-white font-bold text-lg">
+                      <span>Charged to your card</span>
+                      <span>{formatUsd(exampleTotalCents)}</span>
                     </div>
                   </div>
+                  <p className="mt-6 text-xs text-white/50">
+                    Shipping or local delivery, if you choose it, is arranged after the sale and quoted separately.
+                  </p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Step 3 - Bid */}
+          {/* Step 3 - Win */}
           <div className="grid lg:grid-cols-2 gap-16 items-center mb-24">
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-3xl blur-2xl opacity-20 scale-95" />
@@ -163,16 +173,18 @@ export default function HowItWorksPage() {
             <div>
               <div className="flex items-center gap-4 mb-6">
                 <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-500 text-white shadow-lg shadow-purple-500/20">
-                  <Gavel className="w-6 h-6" />
+                  <Banknote className="w-6 h-6" />
                 </div>
                 <span className="text-7xl font-display font-bold text-slate-100 select-none">03</span>
               </div>
-              <h3 className="text-3xl font-display font-bold text-slate-900 mb-4">Place Your Bid</h3>
+              <h3 className="text-3xl font-display font-bold text-slate-900 mb-4">Win and Get Charged Once</h3>
               <p className="text-lg text-slate-600 mb-6 leading-relaxed">
-                Bid with confidence. Set your maximum and we&apos;ll autobid for you, or go manual for the thrill. Anti-sniping protection means everyone gets a fair shot.
+                When the auction closes with you on top, your card on file is charged the hammer price plus the
+                auctioneer&apos;s buyer&apos;s premium, the same total you saw before bidding. You get an invoice
+                showing exactly how it adds up.
               </p>
               <ul className="space-y-3">
-                {['Automatic proxy bidding', 'Anti-sniping time extensions', 'Real-time bid notifications', 'Bid from any device'].map((item) => (
+                {['Charged only if you win', 'Hammer price plus the disclosed premium, nothing added', 'Itemized invoice in your account'].map((item) => (
                   <li key={item} className="flex items-center gap-3 text-slate-700">
                     <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
                     {item}
@@ -182,7 +194,7 @@ export default function HowItWorksPage() {
             </div>
           </div>
 
-          {/* Step 4 - Win & Receive */}
+          {/* Step 4 - Pick up, ship, or local delivery */}
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <div className="order-2 lg:order-1">
               <div className="flex items-center gap-4 mb-6">
@@ -191,12 +203,13 @@ export default function HowItWorksPage() {
                 </div>
                 <span className="text-7xl font-display font-bold text-slate-100 select-none">04</span>
               </div>
-              <h3 className="text-3xl font-display font-bold text-slate-900 mb-4">Win & Receive</h3>
+              <h3 className="text-3xl font-display font-bold text-slate-900 mb-4">Pick Up, Ship, or Local Delivery</h3>
               <p className="text-lg text-slate-600 mb-6 leading-relaxed">
-                Won an item? Payment is handled instantly from your ITC balance. Your funds are held in escrow until you confirm receipt — so you&apos;re always protected.
+                Collect your lot during the auctioneer&apos;s pickup window, have it shipped, or book local delivery
+                and a vetted contractor driver brings it to your door with tracking along the way.
               </p>
               <ul className="space-y-3">
-                {['Instant payment from ITC balance', 'Escrow protection until delivery confirmed', 'Invoices and shipping tracking', 'Rate your experience'].map((item) => (
+                {['Pickup windows set by the auctioneer', 'Shipping where the auctioneer offers it', 'Local delivery by vetted drivers, tracked to your door'].map((item) => (
                   <li key={item} className="flex items-center gap-3 text-slate-700">
                     <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
                     {item}
@@ -223,7 +236,7 @@ export default function HowItWorksPage() {
             </Badge>
             <h2 className="text-4xl sm:text-5xl font-display font-bold text-slate-900 leading-tight">
               List, Sell, Get Paid.
-              <span className="bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent"> Zero Overhead.</span>
+              <span className="bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent"> On Your Own Account.</span>
             </h2>
           </div>
 
@@ -236,12 +249,14 @@ export default function HowItWorksPage() {
               </div>
             </div>
             <div>
-              <div className="space-y-10">
+              <div className="space-y-8">
                 {[
-                  { num: '01', icon: Users, title: 'Sign Up & Get Approved', desc: 'Create your auctioneer account with your business details. Our team verifies your credentials quickly so you can start selling.' },
-                  { num: '02', icon: Layers, title: 'List Your Lots', desc: 'Upload items individually or in bulk. Add high-quality photos, detailed descriptions, starting bids, and estimates.' },
-                  { num: '03', icon: Gavel, title: 'Run Your Auction', desc: 'Go live and watch bids roll in. Our platform handles all bidding logic, anti-sniping, and real-time notifications.' },
-                  { num: '04', icon: Wallet, title: 'Get Paid Automatically', desc: 'When buyers confirm receipt, funds are released from escrow directly to you. Just 1.2% platform commission.' },
+                  { num: '01', icon: UserPlus, title: 'Apply', desc: 'Tell us about your business and your auctioneer license. Applying is free.' },
+                  { num: '02', icon: FileCheck, title: 'Get Approved', desc: 'We review every application before anyone can list. You will hear back from a person.' },
+                  { num: '03', icon: Landmark, title: 'Connect Your PaymentCloud Merchant Account', desc: 'Winning bidders are charged through your own merchant account, so the money is yours from the moment it settles.' },
+                  { num: '04', icon: Camera, title: 'List Your Lots', desc: 'Photograph each item and AI Quick List drafts the title and description for you to approve. Or upload a CSV. Set opening bids, increments, reserves, and your buyer’s premium.' },
+                  { num: '05', icon: Gavel, title: 'Sell', desc: 'Run a timed online auction. Proxy bidding, anti-sniping extensions, and bid notifications are built in.' },
+                  { num: '06', icon: Banknote, title: 'Paid Straight to Your Bank', desc: 'Hammer plus the buyer’s premium settles to your bank from PaymentCloud. At month end we send one statement for 1.2% of hammer. That is the only thing you pay us.' },
                 ].map((step) => (
                   <div key={step.num} className="flex gap-5">
                     <div className="flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-500 text-white shadow-lg shadow-purple-500/20">
@@ -268,14 +283,14 @@ export default function HowItWorksPage() {
           <div className="text-center max-w-3xl mx-auto mb-16">
             <Badge className="mb-6 text-[10px] tracking-[0.2em]">
               <DollarSign className="w-3 h-3 mr-1" />
-              Transparent Pricing
+              Pricing
             </Badge>
             <h2 className="text-4xl sm:text-5xl font-display font-bold text-slate-900 leading-tight">
-              No Hidden Fees.
-              <span className="bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent"> Ever.</span>
+              Every fee, on every lot,
+              <span className="bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent"> before you bid.</span>
             </h2>
             <p className="mt-6 text-lg text-slate-600">
-              We only make money when you make money. It&apos;s that simple.
+              Two prices on the whole platform. Here they are.
             </p>
           </div>
 
@@ -287,17 +302,20 @@ export default function HowItWorksPage() {
                   For Bidders
                 </Badge>
                 <div className="flex items-baseline gap-2 mb-2">
-                  <span className="text-5xl font-display font-bold text-slate-900">10%</span>
-                  <span className="text-slate-600">buyer&apos;s premium</span>
+                  <span className="text-5xl font-display font-bold text-slate-900">Free</span>
+                  <span className="text-slate-600">to register and bid</span>
                 </div>
-                <p className="text-slate-600 mb-8">Only charged when you win an item. That&apos;s it.</p>
+                <p className="text-slate-600 mb-8">
+                  Free to register and bid. You pay the hammer price plus the auctioneer&apos;s buyer&apos;s premium,
+                  typically 10%, shown on every lot.
+                </p>
                 <ul className="space-y-4">
                   {[
-                    'Free to sign up',
-                    'Free to browse & bid',
+                    'Card on file, charged only when you win',
+                    'Buyer’s premium set by the auctioneer and shown on every lot',
                     'No monthly fees',
                     'No bidding fees',
-                    'Escrow protection included',
+                    'Pick up, ship, or local delivery',
                   ].map((item) => (
                     <li key={item} className="flex items-center gap-3 text-slate-700">
                       <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
@@ -307,7 +325,7 @@ export default function HowItWorksPage() {
                 </ul>
                 <Button asChild size="lg" className="w-full mt-8 rounded-2xl h-14">
                   <Link href="/signup">
-                    Start Bidding Free
+                    Register to Bid
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Link>
                 </Button>
@@ -317,7 +335,7 @@ export default function HowItWorksPage() {
             {/* Auctioneer Pricing */}
             <div className="relative overflow-hidden rounded-3xl border-2 border-purple-500 bg-white shadow-[0_20px_60px_rgba(76,29,149,0.12)]">
               <div className="absolute top-0 right-0 bg-gradient-to-l from-purple-500 to-indigo-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-1.5 rounded-bl-xl">
-                Best Value
+                Founding Rate
               </div>
               <div className="p-8 lg:p-10">
                 <Badge variant="secondary" className="mb-6 text-[10px] tracking-[0.2em] bg-purple-100 text-purple-700">
@@ -325,17 +343,20 @@ export default function HowItWorksPage() {
                 </Badge>
                 <div className="flex items-baseline gap-2 mb-2">
                   <span className="text-5xl font-display font-bold text-slate-900">1.2%</span>
-                  <span className="text-slate-600">platform commission</span>
+                  <span className="text-slate-600">of hammer</span>
                 </div>
-                <p className="text-slate-600 mb-8">Only charged when your item sells. Nothing else.</p>
+                <p className="text-slate-600 mb-8">
+                  1.2% of hammer, founding rate locked for life. No monthly, listing, per-bid, or webcast fees.
+                  Processing through your own merchant account.
+                </p>
                 <ul className="space-y-4">
                   {[
                     'No monthly software fees',
-                    'No per-auction charges',
-                    'No per-bid fees',
                     'No listing fees',
-                    'No setup or onboarding costs',
-                    'Founding rate locked for life',
+                    'No per-bid fees',
+                    'No webcast fees',
+                    'You keep the buyer’s premium',
+                    'One statement a month, billed after the sales',
                   ].map((item) => (
                     <li key={item} className="flex items-center gap-3 text-slate-700">
                       <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
@@ -352,6 +373,9 @@ export default function HowItWorksPage() {
               </div>
             </div>
           </div>
+          <p className="mt-8 text-center text-sm text-slate-500 max-w-2xl mx-auto">
+            The standard platform fee is 2% of hammer. Founding auctioneers keep 1.2% for as long as they sell here.
+          </p>
         </div>
       </section>
 
@@ -369,12 +393,12 @@ export default function HowItWorksPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
-              { icon: ShieldCheck, title: 'Escrow Payments', desc: 'Funds held securely until buyer confirms receipt. Both sides protected.' },
-              { icon: Clock3, title: 'Anti-Sniping', desc: 'Automatic time extensions prevent last-second bid manipulation.' },
-              { icon: Users, title: 'Verified Auctioneers', desc: 'Every auctioneer is vetted with proper licensing and credentials.' },
+              { icon: CreditCard, title: 'Card on File', desc: 'Bidders register a card once. It is charged only when they win, for the total they saw before bidding.' },
+              { icon: Clock3, title: 'Anti-Sniping', desc: 'Automatic time extensions when a bid lands near the close, so the lot sells at its true price.' },
+              { icon: BadgeCheck, title: 'Licensed Auctioneers', desc: 'Every auctioneer is reviewed before they can list.' },
               { icon: Smartphone, title: 'Mobile-First', desc: 'Full bidding experience on any device. No app download needed.' },
-              { icon: BarChart3, title: 'Real-Time Analytics', desc: 'Track bids, views, and engagement on every lot in real time.' },
-              { icon: TrendingUp, title: 'Smart Bid Increments', desc: 'Automatic bid increments based on current price for fair progression.' },
+              { icon: Layers, title: 'AI Quick List and CSV Upload', desc: 'Draft a catalog from photos, or bring one in from a spreadsheet.' },
+              { icon: Truck, title: 'Local Delivery', desc: 'Vetted contractor drivers deliver won lots locally, with tracking for the buyer and the auctioneer.' },
             ].map((feature) => (
               <div key={feature.title} className="p-6 rounded-2xl bg-white border border-slate-200 hover:border-purple-300 hover:shadow-lg transition-all duration-300">
                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-purple-500/20 mb-4">
@@ -405,12 +429,12 @@ export default function HowItWorksPage() {
                 Ready to Get Started?
               </h2>
               <p className="text-lg text-white/80 mb-10">
-                Join thousands of bidders and auctioneers already using the most affordable auction platform on the market.
+                Register with a card and start bidding, or apply to sell at the founding 1.2% rate.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="secondary" className="bg-white text-purple-700 hover:bg-white/90 shadow-xl h-14 px-8 rounded-2xl text-base">
                   <Link href="/signup">
-                    Start Bidding Free
+                    Register to Bid
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Link>
                 </Button>
