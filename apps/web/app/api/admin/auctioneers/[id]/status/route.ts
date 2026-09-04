@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import { createAdminClient } from '@/lib/supabase/admin'
+import { adminRpc, createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
 const AuctioneerStatusSchema = z.object({
@@ -49,17 +49,26 @@ export async function PUT(
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
 
-    const { data: auctioneer, error: auctioneerError } = await admin
+    const { data: auctioneerRow, error: auctioneerError } = await admin
       .from('auctioneers')
       .select('id, user_id, company_name, is_approved')
       .eq('id', id)
       .single()
 
+    // The hand-maintained Database type resolves service-role query results
+    // to `never` (see lib/supabase/admin.ts); narrow to the columns selected.
+    const auctioneer = auctioneerRow as {
+      id: string
+      user_id: string
+      company_name: string
+      is_approved: boolean
+    } | null
+
     if (auctioneerError || !auctioneer) {
       return NextResponse.json({ error: 'Auctioneer application not found' }, { status: 404 })
     }
 
-    const { data: licenseDocument, error: licenseError } = await admin
+    const { data: licenseDocumentRow, error: licenseError } = await admin
       .from('user_documents')
       .select('id')
       .eq('user_id', auctioneer.user_id)
@@ -67,6 +76,8 @@ export async function PUT(
       .order('uploaded_at', { ascending: false })
       .limit(1)
       .maybeSingle()
+
+    const licenseDocument = licenseDocumentRow as { id: string } | null
 
     if (licenseError) {
       console.error('Failed to fetch auctioneer license document:', licenseError)
@@ -124,6 +135,39 @@ export async function PUT(
         console.error('Failed to update license document status:', updateDocumentError)
         return NextResponse.json({ error: 'Failed to update license document status' }, { status: 500 })
       }
+    }
+
+    // Audit trail (migration 019 rewrote log_admin_action against the real
+    // audit_log columns). The decision above has already been applied, so a
+    // failure here is logged rather than turned into a 500 the admin would
+    // read as "the approval did not happen".
+    const { error: auditError } = await adminRpc('log_admin_action', {
+      p_admin_id: user.id,
+      p_action: is_approved ? 'auctioneer_approved' : 'auctioneer_rejected',
+      p_target_type: 'auctioneers',
+      p_target_id: id,
+      p_before_values: {
+        is_approved: auctioneer.is_approved,
+        user_id: auctioneer.user_id,
+        company_name: auctioneer.company_name,
+      },
+      p_after_values: {
+        is_approved,
+        approval_date: is_approved ? now : null,
+        user_role: 'auctioneer',
+        user_is_approved: is_approved,
+        license_document_id: licenseDocument?.id ?? null,
+        license_verification_status: licenseDocument
+          ? is_approved
+            ? 'approved'
+            : 'rejected'
+          : null,
+      },
+      p_notes: notes || null,
+    })
+
+    if (auditError) {
+      console.error('Failed to write audit log for auctioneer status change:', auditError)
     }
 
     return NextResponse.json({
