@@ -35,8 +35,10 @@ what the follow-on tasks add on top of them.
 **Sandbox fallback.** When `NODE_ENV !== 'production'` and `NMI_SECURITY_KEY` is
 unset, `lib/payments/nmi.ts` uses NMI's public sandbox key
 `6457Thfj624V5r7WUwc5v6a68Zsd6YEm` and logs one warning. In production a missing
-key throws a clear error; there is no silent fallback. The sandbox gateway
-approves any amount ending in `.00` and declines amounts like `x.01`.
+key throws a clear error; there is no silent fallback. In NMI test mode, use
+the test cards (Visa `4111111111111111`, any future expiry, CVV `999`); an
+amount under `1.00` produces a decline and an invalid card number produces an
+error. Confirm these against the sandbox before relying on them in tests.
 
 Live keys arrive from PaymentCloud on 2026-09-07. Until then everything runs
 against the sandbox.
