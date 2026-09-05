@@ -18,3 +18,17 @@ export const ORG_PENDING_PATH = '/org/pending'
 export function canAccessOrg({ role, is_approved }: OrgGateProfile): boolean {
   return role === 'auctioneer' && is_approved === true
 }
+
+/**
+ * Which notice an unapproved auctioneer sees. Derived from the latest
+ * auctioneer_license document's verification_status (user_documents):
+ * 'rejected' when an admin rejected the license, otherwise 'pending'
+ * (no document yet, still pending, or any unknown value).
+ */
+export type OrgPendingVariant = 'pending' | 'rejected'
+
+export function pendingVariantFor(
+  verificationStatus: string | null | undefined,
+): OrgPendingVariant {
+  return verificationStatus === 'rejected' ? 'rejected' : 'pending'
+}

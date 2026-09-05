@@ -1,7 +1,8 @@
 -- 019_security_hardening_2.sql
 -- Closes the privilege-escalation holes confirmed on the LIVE database
 -- (project qdiodkevkacgbfvplafm, pg_policies + column_privileges) in the
--- 2026-09-04 launch audit. Run AFTER 013-018. Idempotent: safe to re-run.
+-- 2026-09-04 launch audit. Run after 001-002 (requires get_user_role and the
+-- base tables); safe to run before or after 013-018. Idempotent: safe to re-run.
 --
 -- What was wrong:
 --   1. The users UPDATE policy is just `id = auth.uid()` and the `authenticated`
@@ -47,20 +48,31 @@ AS $$
   );
 $$;
 
--- TRUE for the service role, for sessions with no JWT (SQL editor, cron), and
--- for signed-in admins (same get_user_role() primitive the RLS policies use).
+-- TRUE for the service role, for sessions that did not arrive through
+-- PostgREST (SQL editor, psql, pg_cron: anything whose login role is not
+-- `authenticator`), and for signed-in admins (same get_user_role() primitive
+-- the RLS policies use). A PostgREST request with no role claim is NOT
+-- privileged: session_user is the login role, so it stays `authenticator`
+-- whatever role PostgREST SET ROLEs to for the request.
 -- Always returns a non-null boolean so `IF NOT ...` guards are safe.
 CREATE OR REPLACE FUNCTION public.is_admin_or_service_role()
 RETURNS BOOLEAN
 LANGUAGE sql
 STABLE
 AS $$
-  SELECT public.request_jwt_role() IN ('service_role', '')
+  SELECT public.request_jwt_role() = 'service_role'
+      OR session_user <> 'authenticator'
       OR COALESCE(
-           auth.uid() IS NOT NULL AND public.get_user_role() = 'admin'::user_role,
+           auth.uid() IS NOT NULL AND public.get_user_role() = 'admin'::public.user_role,
            false
          );
 $$;
+
+-- Both helpers are only called from the SECURITY DEFINER bodies and triggers
+-- below, which run as their owner, so no client role needs to EXECUTE them
+-- directly. Keeps them off the PostgREST RPC surface.
+REVOKE EXECUTE ON FUNCTION public.request_jwt_role(), public.is_admin_or_service_role()
+  FROM PUBLIC, anon, authenticated;
 
 -- ============================================================
 -- 1. Column-level UPDATE grants
@@ -73,7 +85,8 @@ $$;
 -- (status quo for it: it was already updatable); the NOTICE shows exactly
 -- what was granted.
 --
--- users:       privileged = id, role, is_approved, created_at
+-- users:       privileged = id, role, is_approved, created_at,
+--                           terms_accepted_at (server-stamped; skipped if absent)
 --              expected grant = email, first_name, last_name, phone,
 --                               notification_prefs (006),
 --                               display_in_leaderboard (012), updated_at
@@ -82,6 +95,11 @@ $$;
 --                               address_line1, address_line2, city, state,
 --                               zip_code, website, logo_url,
 --                               ai_preferences (007), updated_at
+--
+-- New columns on these tables get NO user UPDATE until a migration grants it:
+--   GRANT UPDATE (col) ON public.users TO authenticated;
+-- This file grants what exists when it runs; anything added afterwards starts
+-- locked, which is the safe default.
 
 REVOKE UPDATE ON public.users FROM authenticated, anon;
 REVOKE UPDATE ON public.auctioneers FROM authenticated, anon;
@@ -95,7 +113,7 @@ BEGIN
   FROM information_schema.columns
   WHERE table_schema = 'public'
     AND table_name = 'users'
-    AND column_name NOT IN ('id', 'role', 'is_approved', 'created_at');
+    AND column_name NOT IN ('id', 'role', 'is_approved', 'created_at', 'terms_accepted_at');
 
   IF v_cols IS NULL THEN
     RAISE EXCEPTION 'public.users has no grantable columns?!';
@@ -132,7 +150,7 @@ CREATE OR REPLACE FUNCTION public.protect_privileged_columns()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_old JSONB;
@@ -148,6 +166,11 @@ BEGIN
   v_new := to_jsonb(NEW);
 
   FOREACH v_col IN ARRAY TG_ARGV LOOP
+    -- A misspelled trigger argument would otherwise protect nothing, silently.
+    IF NOT (v_old ? v_col) THEN
+      RAISE EXCEPTION 'protect_privileged_columns: %.% has no column %',
+        TG_TABLE_SCHEMA, TG_TABLE_NAME, v_col;
+    END IF;
     IF v_new -> v_col IS DISTINCT FROM v_old -> v_col THEN
       v_changed := array_append(v_changed, v_col);
     END IF;
@@ -186,7 +209,7 @@ CREATE OR REPLACE FUNCTION public.protect_users_insert()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 BEGIN
   IF public.is_admin_or_service_role() THEN
@@ -199,7 +222,7 @@ BEGIN
       MESSAGE = 'public.users: you can only create your own profile';
   END IF;
 
-  IF NEW.role IS DISTINCT FROM 'bidder'::user_role THEN
+  IF NEW.role IS DISTINCT FROM 'bidder'::public.user_role THEN
     RAISE EXCEPTION USING
       ERRCODE = 'insufficient_privilege',
       MESSAGE = 'public.users: self-created profiles must have role bidder';
@@ -226,7 +249,6 @@ CREATE TRIGGER protect_users_insert
 -- so an admin cannot attribute an action to someone else; the service role
 -- (no subject) records the id the server passes in.
 DROP FUNCTION IF EXISTS public.log_admin_action(UUID, TEXT, TEXT, UUID, JSONB, JSONB);
-DROP FUNCTION IF EXISTS public.log_admin_action(UUID, TEXT, TEXT, UUID, JSONB, JSONB, TEXT, INET, TEXT);
 
 CREATE OR REPLACE FUNCTION public.log_admin_action(
   p_admin_id UUID,
@@ -240,7 +262,7 @@ CREATE OR REPLACE FUNCTION public.log_admin_action(
 RETURNS UUID
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_log_id UUID;
@@ -286,17 +308,17 @@ GRANT EXECUTE ON FUNCTION public.log_admin_action(UUID, TEXT, TEXT, UUID, JSONB,
 CREATE OR REPLACE FUNCTION public.change_user_role(
   p_admin_id UUID,
   p_target_user_id UUID,
-  p_new_role user_role,
+  p_new_role public.user_role,
   p_notes TEXT DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_actor UUID;
-  v_old_role user_role;
+  v_old_role public.user_role;
   v_email TEXT;
 BEGIN
   IF NOT public.is_admin_or_service_role() THEN
@@ -307,13 +329,14 @@ BEGIN
 
   v_actor := COALESCE(auth.uid(), p_admin_id);
 
-  IF v_actor = p_target_user_id AND p_new_role <> 'admin'::user_role THEN
+  IF v_actor = p_target_user_id AND p_new_role <> 'admin'::public.user_role THEN
     RETURN jsonb_build_object('success', false, 'error', 'Cannot remove admin role from yourself');
   END IF;
 
   SELECT role, email INTO v_old_role, v_email
   FROM public.users
-  WHERE id = p_target_user_id;
+  WHERE id = p_target_user_id
+  FOR UPDATE;
 
   IF NOT FOUND THEN
     RETURN jsonb_build_object('success', false, 'error', 'User not found');
@@ -346,8 +369,8 @@ BEGIN
 END;
 $$;
 
-REVOKE EXECUTE ON FUNCTION public.change_user_role(UUID, UUID, user_role, TEXT) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.change_user_role(UUID, UUID, user_role, TEXT) TO authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION public.change_user_role(UUID, UUID, public.user_role, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.change_user_role(UUID, UUID, public.user_role, TEXT) TO authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION public.change_user_status(
   p_admin_id UUID,
@@ -358,7 +381,7 @@ CREATE OR REPLACE FUNCTION public.change_user_status(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_actor UUID;
@@ -380,7 +403,8 @@ BEGIN
 
   SELECT is_approved, email INTO v_old_status, v_email
   FROM public.users
-  WHERE id = p_target_user_id;
+  WHERE id = p_target_user_id
+  FOR UPDATE;
 
   IF NOT FOUND THEN
     RETURN jsonb_build_object('success', false, 'error', 'User not found');
@@ -431,12 +455,15 @@ GRANT EXECUTE ON FUNCTION public.change_user_status(UUID, UUID, BOOLEAN, TEXT) T
 -- storage.objects is owned by supabase_storage_admin, so policy creation can
 -- be refused depending on the role running the migration (same wrapper as
 -- 016). A refusal is logged rather than failing the rest of this migration.
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('auctioneer-licenses', 'auctioneer-licenses', false)
-ON CONFLICT (id) DO NOTHING;
-
+-- The bucket upsert sits inside the same guard: storage.buckets has the same
+-- owner, so an insufficient_privilege there must not abort the file either
+-- (the bucket already exists on the live DB from 009).
 DO $$
 BEGIN
+  INSERT INTO storage.buckets (id, name, public)
+  VALUES ('auctioneer-licenses', 'auctioneer-licenses', false)
+  ON CONFLICT (id) DO NOTHING;
+
   DROP POLICY IF EXISTS "Auctioneers read own license files" ON storage.objects;
   CREATE POLICY "Auctioneers read own license files" ON storage.objects
     FOR SELECT TO authenticated
@@ -450,11 +477,11 @@ BEGIN
     FOR ALL TO authenticated
     USING (
       bucket_id = 'auctioneer-licenses'
-      AND public.get_user_role() = 'admin'::user_role
+      AND public.get_user_role() = 'admin'::public.user_role
     )
     WITH CHECK (
       bucket_id = 'auctioneer-licenses'
-      AND public.get_user_role() = 'admin'::user_role
+      AND public.get_user_role() = 'admin'::public.user_role
     );
 EXCEPTION
   WHEN insufficient_privilege OR undefined_table THEN
@@ -474,7 +501,19 @@ NOTIFY pgrst, 'reload schema';
 -- file (REVOKE only removes your own grants) — the triggers in section 2
 -- still block the change, but investigate. A false on a storage row means
 -- the policies were skipped for lack of privilege; add them from the
--- dashboard (see the NOTICE text in section 5).
+-- dashboard (see the NOTICE text in section 5). Rows 22/23 inline the column
+-- lists actually granted (the SQL editor does not show section 1's NOTICEs):
+-- read them and confirm no privileged column is present.
+WITH granted AS (
+  SELECT table_name::text AS table_name,
+         string_agg(column_name::text, ', ' ORDER BY column_name::text) AS cols
+  FROM information_schema.column_privileges
+  WHERE grantee = 'authenticated'
+    AND table_schema = 'public'
+    AND table_name IN ('users', 'auctioneers')
+    AND privilege_type = 'UPDATE'
+  GROUP BY table_name
+)
 SELECT check_name, ok
 FROM (VALUES
   (10, 'authenticated cannot UPDATE users.role',
@@ -493,6 +532,12 @@ FROM (VALUES
        has_column_privilege('authenticated', 'public.users', 'first_name', 'UPDATE')),
   (21, 'authenticated can still UPDATE auctioneers.company_name (profile edits work)',
        has_column_privilege('authenticated', 'public.auctioneers', 'company_name', 'UPDATE')),
+  (22, 'users: authenticated may UPDATE ('
+         || COALESCE((SELECT cols FROM granted WHERE table_name = 'users'), 'nothing') || ')',
+       (SELECT cols FROM granted WHERE table_name = 'users') IS NOT NULL),
+  (23, 'auctioneers: authenticated may UPDATE ('
+         || COALESCE((SELECT cols FROM granted WHERE table_name = 'auctioneers'), 'nothing') || ')',
+       (SELECT cols FROM granted WHERE table_name = 'auctioneers') IS NOT NULL),
   (30, 'trigger protect_users_privileged_columns exists',
        EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'protect_users_privileged_columns' AND NOT tgisinternal)),
   (31, 'trigger protect_auctioneers_privileged_columns exists',
@@ -513,6 +558,12 @@ FROM (VALUES
        NOT has_function_privilege('anon', 'public.change_user_status(uuid, uuid, boolean, text)', 'EXECUTE')),
   (46, 'anon cannot EXECUTE log_admin_action',
        NOT has_function_privilege('anon', 'public.log_admin_action(uuid, text, text, uuid, jsonb, jsonb, text)', 'EXECUTE')),
+  (47, 'anon/authenticated cannot EXECUTE is_admin_or_service_role',
+       NOT has_function_privilege('anon', 'public.is_admin_or_service_role()', 'EXECUTE')
+       AND NOT has_function_privilege('authenticated', 'public.is_admin_or_service_role()', 'EXECUTE')),
+  (48, 'anon/authenticated cannot EXECUTE request_jwt_role',
+       NOT has_function_privilege('anon', 'public.request_jwt_role()', 'EXECUTE')
+       AND NOT has_function_privilege('authenticated', 'public.request_jwt_role()', 'EXECUTE')),
   (50, 'storage policy "Auctioneers read own license files" exists',
        EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Auctioneers read own license files')),
   (51, 'storage policy "Admins manage license files" exists',
