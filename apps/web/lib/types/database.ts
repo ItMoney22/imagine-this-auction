@@ -19,30 +19,33 @@ export interface Database {
           phone: string | null
           is_approved: boolean
           notification_prefs: Json
+          terms_accepted_at: string | null
           created_at: string
           updated_at: string
         }
         Insert: {
           id: string
           email: string
-          role?: 'bidder' | 'auctioneer' | 'admin'
+          role?: 'bidder' | 'auctioneer' | 'admin' | 'driver'
           first_name?: string | null
           last_name?: string | null
           phone?: string | null
           is_approved?: boolean
           notification_prefs?: Json
+          terms_accepted_at?: string | null
           created_at?: string
           updated_at?: string
         }
         Update: {
           id?: string
           email?: string
-          role?: 'bidder' | 'auctioneer' | 'admin'
+          role?: 'bidder' | 'auctioneer' | 'admin' | 'driver'
           first_name?: string | null
           last_name?: string | null
           phone?: string | null
           is_approved?: boolean
           notification_prefs?: Json
+          terms_accepted_at?: string | null
           created_at?: string
           updated_at?: string
         }
