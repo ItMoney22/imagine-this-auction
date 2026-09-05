@@ -5,6 +5,7 @@ import { expect, test } from '@playwright/test'
 import {
   addCustomerVault,
   centsToAmount,
+  describeSignatureNonce,
   NMI_SANDBOX_SECURITY_KEY,
   NmiError,
   parseResponse,
@@ -21,9 +22,10 @@ import { NmiWebhookEventSchema, type NmiWebhookEvent } from '../../lib/payments/
 
 /**
  * Records every request the client makes and answers from a queue of
- * URL-encoded bodies, exactly as NMI's Direct Post API responds.
+ * URL-encoded bodies, exactly as NMI's Direct Post API responds. An Error in
+ * the queue is thrown in place of a response (network failure).
  */
-function fakeFetch(...bodies: string[]) {
+function fakeFetch(...bodies: (string | Error)[]) {
   const calls: { url: string; fields: URLSearchParams; contentType: string | undefined }[] = []
   const queue = [...bodies]
 
@@ -36,6 +38,7 @@ function fakeFetch(...bodies: string[]) {
     })
     const body = queue.shift()
     if (body === undefined) throw new Error('fakeFetch: no response queued')
+    if (body instanceof Error) throw body
     return { ok: true, status: 200, text: async () => body }
   }
 
@@ -192,11 +195,37 @@ test.describe('sale', () => {
     expect(result.responsetext).toBe('DECLINE')
   })
 
-  test('throws when the gateway is unreachable', async () => {
+  test('throws when the gateway is unreachable, without leaking the security key', async () => {
     const fetchImpl: NmiFetch = async () => ({ ok: false, status: 502, text: async () => 'Bad Gateway' })
+    let caught: unknown
+    try {
+      await sale({ customerVaultId: 'vault_42', amountCents: 500, orderId: 'inv_3' }, { ...CLIENT, fetchImpl })
+    } catch (error) {
+      caught = error
+    }
+    expect(caught).toBeInstanceOf(NmiError)
+    const err = caught as NmiError
+    expect(err.httpStatus).toBe(502)
+    expect(err.message).not.toContain('test-key')
+    expect(JSON.stringify(err)).not.toContain('test-key')
+  })
+
+  test('accepts up to 20 merchant-defined fields and refuses more', async () => {
+    const { fetchImpl, calls } = fakeFetch(APPROVED_SALE)
+    const twenty = Array.from({ length: 20 }, (_, i) => `f${i + 1}`)
+    await sale(
+      { customerVaultId: 'vault_42', amountCents: 500, orderId: 'inv_3', merchantDefinedFields: twenty },
+      { ...CLIENT, fetchImpl }
+    )
+    expect(calls[0].fields.get('merchant_defined_field_20')).toBe('f20')
+
     await expect(
-      sale({ customerVaultId: 'vault_42', amountCents: 500, orderId: 'inv_3' }, { ...CLIENT, fetchImpl })
-    ).rejects.toBeInstanceOf(NmiError)
+      sale(
+        { customerVaultId: 'vault_42', amountCents: 500, orderId: 'inv_3', merchantDefinedFields: [...twenty, 'f21'] },
+        { ...CLIENT, fetchImpl }
+      )
+    ).rejects.toThrow(RangeError)
+    expect(calls).toHaveLength(1)
   })
 
   test('refuses a zero or negative amount before touching the network', async () => {
@@ -218,6 +247,17 @@ test.describe('refund and void', () => {
     expect(calls[0].fields.get('transactionid')).toBe('9876543210')
     expect(calls[0].fields.get('amount')).toBe('15.00')
     expect(calls[1].fields.has('amount')).toBe(false)
+  })
+
+  test('refund refuses a zero or negative partial amount, which NMI would treat as a full refund', async () => {
+    const { fetchImpl, calls } = fakeFetch(APPROVED_SALE)
+    await expect(refund({ transactionId: '9876543210', amountCents: 0 }, { ...CLIENT, fetchImpl })).rejects.toThrow(
+      RangeError
+    )
+    await expect(refund({ transactionId: '9876543210', amountCents: -5 }, { ...CLIENT, fetchImpl })).rejects.toThrow(
+      RangeError
+    )
+    expect(calls).toHaveLength(0)
   })
 
   test('void sends type=void with the transaction id', async () => {
@@ -310,10 +350,50 @@ test.describe('validateCard', () => {
 
     expect(result.ok).toBe(true)
     expect(result.transactionId).toBe('222')
+    expect(result.unvoidedAuthTransactionId).toBeUndefined()
     expect(calls.map((c) => c.fields.get('type'))).toEqual(['validate', 'auth', 'void'])
     expect(calls[1].fields.get('amount')).toBe('1.00')
     expect(calls[1].fields.get('customer_vault_id')).toBe('vault_1')
     expect(calls[2].fields.get('transactionid')).toBe('222')
+  })
+
+  test('reports a decline of the fallback auth without attempting a void', async () => {
+    const { fetchImpl, calls } = fakeFetch(
+      'response=3&responsetext=Transaction+type+not+supported&transactionid=0&type=validate&response_code=300',
+      'response=2&responsetext=DECLINE&transactionid=223&avsresponse=N&cvvresponse=N&type=auth&response_code=200'
+    )
+    const result = await validateCard({ customerVaultId: 'vault_1' }, { ...CLIENT, fetchImpl })
+
+    expect(result.ok).toBe(false)
+    expect(result.message).toBe('DECLINE')
+    expect(result.transactionId).toBe('223')
+    expect(calls.map((c) => c.fields.get('type'))).toEqual(['validate', 'auth'])
+  })
+
+  test('still reports a valid card when the void of the $1.00 auth throws, and surfaces the hold', async () => {
+    const { fetchImpl, calls } = fakeFetch(
+      'response=3&responsetext=Transaction+type+not+supported&transactionid=0&type=validate&response_code=300',
+      'response=1&responsetext=SUCCESS&authcode=A1&transactionid=222&avsresponse=Y&cvvresponse=M&type=auth&response_code=100',
+      new Error('socket hang up')
+    )
+    const result = await validateCard({ customerVaultId: 'vault_1' }, { ...CLIENT, fetchImpl })
+
+    expect(result.ok).toBe(true)
+    expect(result.transactionId).toBe('222')
+    expect(result.unvoidedAuthTransactionId).toBe('222')
+    expect(calls.map((c) => c.fields.get('type'))).toEqual(['validate', 'auth', 'void'])
+  })
+
+  test('surfaces the hold when the gateway declines the void', async () => {
+    const { fetchImpl } = fakeFetch(
+      'response=3&responsetext=Transaction+type+not+supported&transactionid=0&type=validate&response_code=300',
+      'response=1&responsetext=SUCCESS&authcode=A1&transactionid=222&avsresponse=Y&cvvresponse=M&type=auth&response_code=100',
+      'response=3&responsetext=Transaction+not+found&transactionid=222&type=void&response_code=300'
+    )
+    const result = await validateCard({ customerVaultId: 'vault_1' }, { ...CLIENT, fetchImpl })
+
+    expect(result.ok).toBe(true)
+    expect(result.unvoidedAuthTransactionId).toBe('222')
   })
 
   test('reports a declined card without falling back', async () => {
@@ -346,6 +426,28 @@ test.describe('verifyNmiSignature', () => {
   test('accepts the header with a space after the comma', () => {
     const t = String(now)
     expect(verifyNmiSignature(`t=${t}, s=${sign(t)}`, body, key, { nowSeconds: now }).ok).toBe(true)
+  })
+
+  test('accepts an uppercase hex signature', () => {
+    const t = String(now)
+    expect(verifyNmiSignature(`t=${t},s=${sign(t).toUpperCase()}`, body, key, { nowSeconds: now }).ok).toBe(true)
+  })
+
+  test('treats a 13-digit nonce as milliseconds', () => {
+    const fresh = String((now - 30) * 1000)
+    const stale = String((now - 10 * 60) * 1000)
+    expect(verifyNmiSignature(`t=${fresh},s=${sign(fresh)}`, body, key, { nowSeconds: now }).ok).toBe(true)
+    expect(verifyNmiSignature(`t=${stale},s=${sign(stale)}`, body, key, { nowSeconds: now }).ok).toBe(false)
+  })
+
+  test('describes the nonce shape for logs without revealing its value', () => {
+    expect(describeSignatureNonce(null)).toBe('missing')
+    expect(describeSignatureNonce('s=abc')).toBe('missing')
+    expect(describeSignatureNonce(`t=${now},s=abc`)).toBe('numeric(10)')
+    expect(describeSignatureNonce(`t=${now * 1000},s=abc`)).toBe('numeric(13)')
+    const shape = describeSignatureNonce('t=a1b2c3d4e5f6,s=abc')
+    expect(shape).toBe('alphanumeric(12)')
+    expect(shape).not.toContain('a1b2c3d4e5f6')
   })
 
   test('rejects a signature made with a different key', () => {
@@ -503,11 +605,13 @@ test.describe('handler registry', () => {
   })
 
   test('the module-level registry wires registerNmiHandler to dispatchNmiEvent', async () => {
+    // A type no real handler will ever claim, so this test cannot collide with Task 4c's registrations.
+    const uniqueType = `test.registry.wiring.${Date.now()}`
     let called = false
-    registerNmiHandler('transaction.sale.failure', () => {
+    registerNmiHandler(uniqueType, () => {
       called = true
     })
-    const result = await dispatchNmiEvent(event('transaction.sale.failure'))
+    const result = await dispatchNmiEvent(event(uniqueType))
     expect(called).toBe(true)
     expect(result.handled).toBe(true)
   })

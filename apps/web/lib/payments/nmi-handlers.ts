@@ -10,6 +10,12 @@ import type { NmiWebhookEvent } from './nmi-types'
  * `register('chargeback', fn)` receives every `chargeback.*` event while
  * `register('transaction.refund.success', fn)` wins over
  * `register('transaction.refund', fn)` for that one type.
+ *
+ * Registration happens when the registering module is evaluated. Nothing
+ * imports a handler module on its own, so the module that calls
+ * `registerNmiHandler` must be imported from `app/api/webhooks/nmi/route.ts`
+ * (Task 4c), or the registry on that route stays empty and every event is
+ * stored with `handled: false`.
  */
 
 export type NmiEventHandler = (event: NmiWebhookEvent) => void | Promise<void>

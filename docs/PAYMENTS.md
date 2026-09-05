@@ -50,8 +50,10 @@ against the sandbox.
 | `apps/web/lib/payments/nmi.ts` | Direct Post client and webhook signature check |
 | `apps/web/lib/payments/nmi-types.ts` | Request/response types and the webhook zod schema |
 | `apps/web/lib/payments/nmi-handlers.ts` | Event-type registry the webhook dispatches into |
-| `apps/web/app/api/webhooks/nmi/route.ts` | `POST /api/webhooks/nmi` |
-| `apps/web/tests/unit/nmi-client.spec.ts` | Unit coverage (`npm run test:unit -- nmi`) |
+| `apps/web/lib/payments/nmi-webhook.ts` | Webhook flow (verify, store, claim, dispatch) and the `payment_events` store |
+| `apps/web/app/api/webhooks/nmi/route.ts` | `POST /api/webhooks/nmi` (thin adapter over `nmi-webhook.ts`) |
+| `apps/web/supabase/migrations/019c_payment_events_claim.sql` | Adds `payment_events.processing_started_at` (the claim column) |
+| `apps/web/tests/unit/nmi-client.spec.ts`, `nmi-webhook.spec.ts` | Unit coverage (`npm run test:unit -- nmi`) |
 
 ### Client (`lib/payments/nmi.ts`)
 
@@ -111,7 +113,9 @@ NMI sends `Webhook-Signature: t=<nonce>,s=<hex>` and computes
 `s = HMAC-SHA256(signingKey, nonce + "." + rawBody)`. The route reads the raw
 body with `request.text()` before any JSON parsing (re-serialised JSON would not
 match), compares with `crypto.timingSafeEqual` after a length guard, and
-rejects with 400 on any mismatch.
+rejects with 401 on any mismatch. The rejection log line carries the reason and
+the nonce's shape and length (`numeric(10)`, `alphanumeric(32)`), never its
+value.
 
 NMI documents `t` as a nonce. When it is purely numeric the route treats it as a
 unix timestamp (seconds; milliseconds when 13+ digits) and rejects events more
@@ -121,13 +125,37 @@ HMAC alone, so a change in NMI's nonce format cannot silently drop every event.
 If `NMI_WEBHOOK_SIGNING_KEY` is unset the route returns 500 and processes
 nothing; there is no unsigned mode.
 
-### Storage and idempotency
+### Storage, claim, and idempotency
 
-Each verified event is upserted into `payment_events` with `provider='nmi'`,
-`provider_event_id=event_id`, `event_type`, and the full payload. A redelivery
-of an already `processed` event returns 200 immediately. Otherwise the event is
-dispatched through `lib/payments/nmi-handlers.ts` and marked processed on
-success. A handler error returns 500 so NMI retries.
+Every verified event is inserted into `payment_events` (`provider='nmi'`,
+`provider_event_id=event_id`, `event_type`, full payload) with
+`ON CONFLICT DO NOTHING`, so a redelivery never resets an existing row.
+
+Processing is then guarded by an atomic claim on the row, using the
+`processing_started_at` column added by migration `019c`:
+
+1. `UPDATE payment_events SET processing_started_at = now()
+   WHERE provider_event_id = $1 AND processed = false
+   AND (processing_started_at IS NULL OR processing_started_at < now() - 2 min)
+   RETURNING id`
+2. No row returned: the event is already processed, or another delivery holds
+   a live claim. Respond 200 `{ ok, duplicate }` and do nothing else.
+3. Row claimed: dispatch through the registry.
+   - Handler ran: `processed = true`, `processed_at` set, claim cleared. 200.
+   - No handler registered for the type: claim cleared, `processed` stays
+     `false`, 200 `{ handled: false }`. The row waits for a later pass (Task 4c
+     can re-dispatch stored events once its handlers exist).
+   - Handler threw: claim cleared, 500 so NMI retries.
+
+A worker that dies mid-handler leaves a claim that expires after two minutes,
+after which a retry takes the row over. That is why **handlers must still be
+idempotent**: the same event can reach a handler twice (a takeover after a
+crash, or a retry after the row could not be marked processed). Key every side
+effect on the event's `transaction_id` / `order_id` and make status transitions
+no-ops when already applied.
+
+Until 019c is applied the claim update fails and every event returns 500 (NMI
+retries), so run the migration before pointing NMI at the endpoint.
 
 ### Handler registry
 
@@ -137,6 +165,11 @@ longest dotted prefix (`register('chargeback', fn)` receives every
 `{ handled: false }`. Task 4a ships only the registry; Task 4c registers
 handlers that update `invoices.payment_status` on refund / void / chargeback
 events and notify admins of disputes.
+
+Handlers register when their module is evaluated, and nothing imports a
+handler module on its own. Task 4c must import its handler module from
+`app/api/webhooks/nmi/route.ts`; otherwise the registry on that route stays
+empty and every event is stored with `handled: false`.
 
 ## What the follow-on tasks add
 
@@ -161,14 +194,18 @@ npm run test:unit -- nmi
 
 The unit suite covers response parsing, amount formatting, the exact form
 fields sent for each transaction type (including `processor_id` routing), the
-validate -> auth/void fallback, signature acceptance / rejection / expiry, the
-webhook schema, and registry dispatch. No test touches the network.
+validate -> auth/void fallback (including a failed void), signature acceptance
+/ rejection / expiry, the webhook schema, registry dispatch, and the webhook
+flow (401 / 400 / duplicate / stale-claim takeover / unhandled / handler
+failure) against an in-memory event store. No test touches the network.
 
 ## Human checklist (Monday 2026-09-07)
 
 - [ ] `NMI_SECURITY_KEY` from PaymentCloud stored in Vercel (production and preview).
 - [ ] `NEXT_PUBLIC_NMI_TOKENIZATION_KEY` (public key, tokenization only) stored.
+- [ ] Migration `019c_payment_events_claim.sql` applied (pending-sql copy in the watchtower inbox).
 - [ ] Webhook endpoint `/api/webhooks/nmi` created in the NMI portal; signing key stored as `NMI_WEBHOOK_SIGNING_KEY`.
+- [ ] Send a test webhook from the NMI portal, confirm a 200, and check the server log for the `t` nonce shape (numeric timestamp vs random string). The rejection log prints only the shape and length, never the value.
 - [ ] ITA's own `processor_id` recorded as `NMI_PLATFORM_PROCESSOR_ID`.
 - [ ] Confirm with PaymentCloud that the gateway has Customer Vault and Load Balancing (multiple MIDs) enabled, and whether the processor supports `type=validate`.
 - [ ] Each onboarded auctioneer's `processor_id` recorded on their `auctioneers` row (Task 4c / Task 6).

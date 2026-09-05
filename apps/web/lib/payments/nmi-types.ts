@@ -71,6 +71,12 @@ export interface ValidateCardResult {
   avsresponse?: string
   cvvresponse?: string
   message: string
+  /**
+   * Set when the $1.00 fallback auth was approved but its void failed. The
+   * card is valid; the hold drops off on its own. Persist it so the auth can
+   * be voided later if a bidder asks.
+   */
+  unvoidedAuthTransactionId?: string
 }
 
 export interface SaleOptions {

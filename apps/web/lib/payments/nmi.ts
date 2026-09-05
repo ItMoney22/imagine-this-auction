@@ -14,7 +14,20 @@ import type {
   VoidOptions,
 } from './nmi-types'
 
-export type { NmiClientOptions, NmiFetch, NmiResponse } from './nmi-types'
+export type {
+  AddCustomerVaultOptions,
+  AddCustomerVaultResult,
+  NmiClientOptions,
+  NmiFetch,
+  NmiResponse,
+  NmiResponseFlag,
+  NmiWebhookEvent,
+  RefundOptions,
+  SaleOptions,
+  ValidateCardOptions,
+  ValidateCardResult,
+  VoidOptions,
+} from './nmi-types'
 
 /**
  * NMI Direct Post client (gateway provisioned through PaymentCloud).
@@ -34,6 +47,9 @@ export const DEFAULT_NMI_API_URL = 'https://secure.nmi.com/api/transact.php'
 
 /** How far a numeric webhook nonce may drift from the server clock. */
 export const NMI_WEBHOOK_TOLERANCE_SECONDS = 5 * 60
+
+/** NMI accepts merchant_defined_field_1 through _20. */
+export const NMI_MAX_MERCHANT_DEFINED_FIELDS = 20
 
 export class NmiError extends Error {
   constructor(
@@ -71,7 +87,7 @@ export function resolveNmiApiUrl(env: Env = process.env): string {
 
 /** `1234` -> `"12.34"` with integer math, so no binary floating-point drift. */
 export function centsToAmount(cents: number): string {
-  if (!Number.isInteger(cents) || cents < 0) {
+  if (!Number.isSafeInteger(cents) || cents < 0) {
     throw new RangeError(`Amount must be a non-negative integer number of cents, got ${cents}`)
   }
   const dollars = Math.floor(cents / 100)
@@ -82,7 +98,7 @@ export function centsToAmount(cents: number): string {
 /** Parse a Direct Post reply (`response=1&responsetext=SUCCESS&...`). */
 export function parseResponse(body: string): NmiResponse {
   const raw: Record<string, string> = {}
-  new URLSearchParams(body).forEach((value, key) => {
+  new URLSearchParams(body.trim()).forEach((value, key) => {
     raw[key] = value
   })
 
@@ -195,7 +211,15 @@ export async function addCustomerVault(
   }
 }
 
-/** A 3xx "gateway rejected" reply to `validate` means the processor lacks the feature. */
+/**
+ * A 3xx "gateway rejected" reply to `validate` is read as "this processor
+ * does not support validate". Trade-off: a 3xx can also mean a genuine
+ * gateway-side rejection (bad vault id, disabled account), in which case the
+ * fallback costs one extra `auth` call that returns the same rejection, so
+ * the caller still sees `ok: false` with the gateway's message. Matching on
+ * `responsetext` instead would be brittle across processors, so the broad
+ * check is deliberate.
+ */
 function isValidateUnsupported(response: NmiResponse): boolean {
   return response.response === 3 && response.response_code >= 300 && response.response_code < 400
 }
@@ -235,14 +259,22 @@ export async function validateCard(options: ValidateCardOptions, client?: NmiCli
   )
   if (!isApproved(auth)) return validateResult(false, auth)
 
-  const voided = await postTransaction({ type: 'void', transactionid: auth.transactionid }, client)
-  if (!isApproved(voided)) {
-    console.warn('[nmi] could not void the $1.00 verification auth; it will drop off on its own', {
-      transactionId: auth.transactionid,
-      message: voided.responsetext,
+  // The card is proven good at this point. A failed void must not turn that
+  // into an error; it only leaves a $1.00 hold that drops off on its own.
+  let unvoidedAuthTransactionId: string | undefined
+  try {
+    const voided = await postTransaction({ type: 'void', transactionid: auth.transactionid }, client)
+    if (!isApproved(voided)) unvoidedAuthTransactionId = auth.transactionid
+  } catch {
+    unvoidedAuthTransactionId = auth.transactionid
+  }
+  if (unvoidedAuthTransactionId) {
+    console.warn('[nmi] could not void the $1.00 verification auth; the hold drops off on its own', {
+      transactionId: unvoidedAuthTransactionId,
     })
   }
-  return validateResult(true, auth)
+
+  return { ...validateResult(true, auth), unvoidedAuthTransactionId }
 }
 
 /**
@@ -253,6 +285,10 @@ export async function validateCard(options: ValidateCardOptions, client?: NmiCli
 export async function sale(options: SaleOptions, client?: NmiClientOptions): Promise<NmiResponse> {
   if (options.amountCents <= 0) {
     throw new RangeError(`Sale amount must be positive, got ${options.amountCents} cents`)
+  }
+  const mdfCount = options.merchantDefinedFields?.length ?? 0
+  if (mdfCount > NMI_MAX_MERCHANT_DEFINED_FIELDS) {
+    throw new RangeError(`NMI accepts at most ${NMI_MAX_MERCHANT_DEFINED_FIELDS} merchant-defined fields, got ${mdfCount}`)
   }
 
   const fields: FormFields = {
@@ -273,8 +309,17 @@ export async function sale(options: SaleOptions, client?: NmiClientOptions): Pro
   return postTransaction(fields, client)
 }
 
-/** Refund a settled sale, in full (no amount) or in part. */
+/**
+ * Refund a settled sale, in full (no amount) or in part. A zero amount is
+ * refused rather than sent: NMI reads `amount=0.00` as a full refund.
+ */
 export async function refund(options: RefundOptions, client?: NmiClientOptions): Promise<NmiResponse> {
+  if (options.amountCents !== undefined && options.amountCents <= 0) {
+    throw new RangeError(
+      `Partial refund amount must be positive, got ${options.amountCents} cents; omit amountCents for a full refund`
+    )
+  }
+
   return postTransaction(
     {
       type: 'refund',
@@ -292,15 +337,33 @@ export async function voidTransaction(options: VoidOptions, client?: NmiClientOp
 
 export type NmiSignatureCheck = { ok: true } | { ok: false; reason: string }
 
-function parseSignatureHeader(header: string): { t: string; s: string } | null {
+function parseSignatureHeaderParts(header: string): Record<string, string> {
   const parts: Record<string, string> = {}
   for (const segment of header.split(',')) {
     const eq = segment.indexOf('=')
     if (eq === -1) continue
     parts[segment.slice(0, eq).trim()] = segment.slice(eq + 1).trim()
   }
+  return parts
+}
+
+function parseSignatureHeader(header: string): { t: string; s: string } | null {
+  const parts = parseSignatureHeaderParts(header)
   if (!parts.t || !parts.s) return null
   return { t: parts.t, s: parts.s }
+}
+
+/**
+ * Shape of the `t` nonce for rejection logs, e.g. `numeric(10)` or
+ * `alphanumeric(32)`. Never includes the value, so a log line cannot help
+ * anyone replay a signature.
+ */
+export function describeSignatureNonce(header: string | null | undefined): string {
+  const t = header ? parseSignatureHeaderParts(header).t : undefined
+  if (!t) return 'missing'
+  if (/^\d+$/.test(t)) return `numeric(${t.length})`
+  if (/^[A-Za-z0-9]+$/.test(t)) return `alphanumeric(${t.length})`
+  return `other(${t.length})`
 }
 
 /**
