@@ -60,7 +60,7 @@ export default function RefundsPage() {
 
             <Section id="exceptions" title="2. When a winning-bid charge is refunded">
               <p>
-                <strong className="text-slate-900">Item not as described.</strong> If the item you receive is materially different from its listing, contact the auctioneer within 7 days of receiving it. The auctioneer&apos;s contact details are on your invoice. If the auctioneer confirms the problem, you will be refunded to the original card once the item is returned as the auctioneer directs, or without a return if the auctioneer waives it. If you and the auctioneer cannot agree, either of you may ask ITA to mediate as described in our{' '}
+                <strong className="text-slate-900">Item not as described.</strong> If the item you receive is materially different from its listing, contact the auctioneer within 7 days of receiving it. You can reach the auctioneer from the auction page or your invoice. If the auctioneer confirms the problem, you will be refunded to the original card once the item is returned as the auctioneer directs, or without a return if the auctioneer waives it. If you and the auctioneer cannot agree, either of you may ask ITA to mediate as described in our{' '}
                 <Link href="/terms#disputes" className="font-medium text-indigo-600 hover:text-indigo-700">Terms of Service</Link>.
               </p>
               <p>

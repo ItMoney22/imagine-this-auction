@@ -66,7 +66,7 @@ export default function PrivacyPage() {
               <p><strong className="text-slate-900">Account information.</strong> Your name, email address, phone number, and role. Your password is handled by our authentication provider and stored only as a hash. Auctioneers also provide a business name, address, tax ID, and auctioneer license documents.</p>
               <p><strong className="text-slate-900">Bidding and purchase activity.</strong> Bids, maximum bids, watchlists, wins, invoices, delivery bookings, and messages you send to support.</p>
               <p><strong className="text-slate-900">Payment information.</strong> Your card is tokenized by our payment processor. We store only the token, the card brand, the last four digits, and the expiration date. We never store full card numbers or security codes.</p>
-              <p><strong className="text-slate-900">Driver documents.</strong> If you apply to drive for us, we collect your driver license, vehicle insurance documents, and the results of the background check you consent to.</p>
+              <p><strong className="text-slate-900">Driver documents.</strong> If you apply to drive for us, we collect your driver license and vehicle insurance documents.</p>
               <p><strong className="text-slate-900">Driver location.</strong> With a driver&apos;s consent, we collect the driver&apos;s location only while a delivery is active, so the buyer and auctioneer can track the package. Collection stops when the delivery is completed or cancelled.</p>
               <p><strong className="text-slate-900">Technical information.</strong> IP address, browser and device type, pages visited, and server logs, collected automatically when you use the site.</p>
             </Section>
@@ -93,7 +93,7 @@ export default function PrivacyPage() {
                 items={[
                   <><strong className="text-slate-900">Payment processor.</strong> Card and charge details are sent to our payment processor to tokenize cards and process charges. Auctioneers process buyer payments through their own merchant accounts.</>,
                   <><strong className="text-slate-900">Auctioneers.</strong> When you win a lot, the auctioneer receives your name, email, phone number, shipping address, and invoice so they can fulfill the sale.</>,
-                  <><strong className="text-slate-900">Delivery drivers.</strong> A driver receives the buyer&apos;s name and delivery address only, and only for the delivery they are assigned. Drivers do not receive your email, phone number, or payment details.</>,
+                  <><strong className="text-slate-900">Delivery drivers.</strong> Drivers receive only the name, delivery address, and contact phone needed to complete your delivery, and only for the delivery they are assigned. They never receive your email or payment details.</>,
                   <><strong className="text-slate-900">Email provider.</strong> Your email address and the content of transactional messages are sent to the provider that delivers our email.</>,
                   <><strong className="text-slate-900">Infrastructure providers.</strong> Hosting, database, and authentication providers that store and process data on our behalf under contract.</>,
                   <><strong className="text-slate-900">Legal.</strong> When required by law, subpoena, or court order, or to protect the rights and safety of our users and the public.</>,
@@ -107,8 +107,8 @@ export default function PrivacyPage() {
                 items={[
                   'Account information: for as long as your account is active, and for up to 90 days after you close it so we can resolve open transactions.',
                   'Bids, invoices, statements, and payment records: seven years, to meet tax and accounting requirements.',
-                  'Driver license, insurance, and background-check records: for as long as you are an active driver, plus the period required by law.',
-                  'Driver location data: for 30 days after the delivery completes, to cover the damage-claim window, and then deleted.',
+                  'Driver license and insurance records: for as long as you are an active driver, plus the period required by law.',
+                  'Driver location data: kept only as long as needed for delivery records and dispute resolution.',
                   'Server logs: up to 12 months.',
                 ]}
               />
@@ -125,7 +125,7 @@ export default function PrivacyPage() {
 
             <Section id="cookies" title="6. Cookies">
               <p>
-                We use cookies and similar storage that are essential to the site: keeping you signed in, protecting against cross-site request forgery, and remembering basic preferences. We do not use third-party advertising cookies. You can block cookies in your browser, but you will not be able to sign in or bid without the essential ones.
+                We use cookies and similar storage that are essential to the site: keeping you signed in and remembering basic preferences. We do not use third-party advertising cookies. You can block cookies in your browser, but you will not be able to sign in or bid without the essential ones.
               </p>
             </Section>
 

@@ -162,7 +162,7 @@ export default function TermsPage() {
               <List
                 items={[
                   'Anti-sniping extension: a bid placed inside the closing window of a lot extends that lot’s closing time by the auction’s stated extension period (60 seconds unless the auctioneer sets otherwise) so other bidders can respond. Extensions can repeat until no further bids are placed.',
-                  'Reserves: an auctioneer may set a reserve price. If the reserve is not met when the lot closes, the item is not sold. The reserve amount is not disclosed, but the lot shows whether it has been met.',
+                  'Reserves: some lots carry a reserve price set by the auctioneer. Where a reserve is shown, the lot does not sell unless bidding reaches it.',
                   'The auctioneer may withdraw a lot or cancel an auction before it closes, and may reject a bid it reasonably believes is fraudulent or placed in bad faith.',
                   'Closing times are determined by our servers. We are not responsible for bids that do not reach us because of connectivity, device, or browser problems.',
                   'Shill bidding, collusion, bid manipulation, and the use of automated bidding tools other than the Platform’s own proxy bidding are prohibited and will result in account closure.',
@@ -181,7 +181,7 @@ export default function TermsPage() {
 
             <Section id="disputes" title="7. Disputes">
               <p>
-                Disputes about an item, its description, shipping, or a charge go first to the auctioneer who sold it. The auctioneer&apos;s contact details are on your invoice. Contact them within 7 days of receiving the item. Most issues are resolved this way.
+                Disputes about an item, its description, shipping, or a charge go first to the auctioneer who sold it. You can reach the auctioneer from the auction page or your invoice. Contact them within 7 days of receiving the item. Most issues are resolved this way.
               </p>
               <p>
                 If you and the auctioneer cannot reach a resolution, either of you may ask ITA to mediate by emailing support@imaginethisauction.com. ITA may review the listing, bid history, and messages and recommend a resolution. ITA is not a party to the sale and mediation is not binding. Our{' '}
@@ -197,7 +197,7 @@ export default function TermsPage() {
               <List
                 items={[
                   'Drivers are vetted independent contractors. They are not employees or agents of ITA or of the auctioneer.',
-                  'Declared value: when you book, you declare the value of the package. ITA’s liability for loss of or damage to a package during delivery is limited to the declared value, up to the maximum declared value shown at booking. Items worth more than that maximum should be shipped through an insured carrier instead.',
+                  'Declared value: when you book, you declare the value of the package. ITA’s liability for loss of or damage to a package during delivery is limited to the declared value, up to the declared-value limit stated when delivery is offered. Items worth more than that limit should be shipped through an insured carrier instead.',
                   'Damage claims: report loss or damage to support@imaginethisauction.com within 48 hours of the recorded delivery time, with photos. Claims made after that 48-hour window are not eligible.',
                   'The auctioneer must have the item packaged for transport and available at the pickup address during the pickup window. The buyer must provide an accurate delivery address and be available to receive the package during the delivery window.',
                   'A failed delivery attempt caused by an inaccurate address or an unavailable recipient may incur a redelivery fee. Cancellations are handled under our Refund Policy.',
@@ -226,7 +226,7 @@ export default function TermsPage() {
 
             <Section id="liability" title="10. Limitation of liability">
               <p>
-                The Platform is provided &ldquo;as is&rdquo; and &ldquo;as available.&rdquo; To the fullest extent permitted by law, ITA is not liable for indirect, incidental, special, consequential, or punitive damages, or for lost profits, lost data, or business interruption arising from your use of the Platform, from any item bought or sold through it, or from any delay or failure of the Platform. ITA&apos;s total liability to you for any claim arising from the Platform will not exceed the greater of one hundred dollars ($100) or the platform fees you paid to ITA in the twelve months before the claim arose. Liability for local delivery is separately limited as described in Section 8.
+                The Platform is provided &ldquo;as is&rdquo; and &ldquo;as available.&rdquo; To the fullest extent permitted by law, ITA is not liable for indirect, incidental, special, consequential, or punitive damages, or for lost profits, lost data, or business interruption arising from your use of the Platform, from any item bought or sold through it, or from any delay or failure of the Platform. ITA&apos;s total liability to you for any claim arising from the Platform will not exceed the greater of one hundred dollars ($100.00) or the platform fees you paid to ITA in the twelve months before the claim arose. Liability for local delivery is separately limited as described in Section 8.
               </p>
               <p>
                 ITA is not a party to the contract of sale between a bidder and an auctioneer. Some jurisdictions do not allow certain limitations, so some of the above may not apply to you.

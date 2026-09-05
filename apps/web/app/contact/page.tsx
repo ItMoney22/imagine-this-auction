@@ -83,7 +83,7 @@ export default function ContactPage() {
 
           <div className="mt-10 space-y-4 text-slate-600 leading-relaxed">
             <p>
-              <strong className="text-slate-900">Problem with an item you won?</strong> Contact the auctioneer first; their details are on your invoice. If that does not resolve it, email us and we will mediate. See the{' '}
+              <strong className="text-slate-900">Problem with an item you won?</strong> Contact the auctioneer first; you can reach them from the auction page or your invoice. If that does not resolve it, email us and we will mediate. See the{' '}
               <Link href="/refunds" className="font-medium text-indigo-600 hover:text-indigo-700">Refund Policy</Link>.
             </p>
             <p>

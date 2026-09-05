@@ -27,7 +27,7 @@ export default function DrivePage() {
       <section className="px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-[70ch]">
           <p className="text-lg leading-relaxed text-slate-600">
-            Imagine This Auction delivers auction wins locally through vetted independent contractor drivers. Drivers are offered nearby pickups, see the buyer&apos;s name and delivery address only for the delivery they accept, and are paid per completed delivery. Applications require a valid driver license, current vehicle insurance, and a background check. Driver onboarding opens soon; to be notified, email{' '}
+            Imagine This Auction delivers auction wins locally through vetted independent contractor drivers. Drivers are offered nearby pickups, see only the buyer&apos;s name, delivery address, and contact phone for the delivery they accept, and are paid per completed delivery. Applications require a valid driver license and current vehicle insurance. Driver onboarding opens soon; to be notified, email{' '}
             <a href="mailto:support@imaginethisauction.com" className="font-medium text-indigo-600 hover:text-indigo-700">
               support@imaginethisauction.com
             </a>{' '}

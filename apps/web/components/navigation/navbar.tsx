@@ -48,7 +48,7 @@ export function Navbar({ user }: NavbarProps) {
   ]
 
   return (
-    <nav className="sticky top-0 z-40 border-b border-white/60 bg-white/70 backdrop-blur-xl shadow-[0_10px_40px_rgba(79,70,229,0.08)]">
+    <nav data-testid="site-navbar" className="sticky top-0 z-40 border-b border-white/60 bg-white/70 backdrop-blur-xl shadow-[0_10px_40px_rgba(79,70,229,0.08)]">
       <div className="mx-auto flex h-20 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-10">
           <Link href="/" className="flex items-center space-x-3">

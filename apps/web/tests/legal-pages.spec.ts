@@ -68,10 +68,14 @@ test.describe('legal and info pages', () => {
 
   test('navbar links to /pricing', async ({ page, isMobile }) => {
     await page.goto('/')
+    // Scoped to the header navbar; the footer also has a nav with a /pricing
+    // link, so an unscoped `nav a[href="/pricing"]` would pass without it.
+    const navbar = page.getByTestId('site-navbar')
     if (isMobile) {
-      await page.getByRole('button', { name: 'Toggle navigation menu' }).click()
+      await navbar.getByRole('button', { name: 'Toggle navigation menu' }).click()
     }
-    await expect(page.locator('nav a[href="/pricing"]').first()).toBeVisible()
+    await expect(navbar.locator('a[href="/pricing"]').first()).toBeVisible()
+    await expect(page.getByTestId('site-footer').locator('a[href="/pricing"]')).toHaveCount(1)
   })
 })
 
