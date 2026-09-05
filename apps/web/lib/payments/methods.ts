@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 
+import { NmiError } from '@/lib/payments/nmi'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Database } from '@/lib/types/database'
 
@@ -131,10 +132,166 @@ export async function upsertPaymentMethod(admin: Db, input: UpsertPaymentMethodI
   return toPaymentMethodPublic(data as Pick<TableRow, keyof PublicSource>)
 }
 
-/** Remove the bidder's card on file. Does not contact the gateway. */
+/** Remove the bidder's row. The gateway record is the caller's (best-effort) job. */
 export async function deletePaymentMethod(admin: Db, userId: string): Promise<void> {
   const { error } = await admin.from('bidder_payment_methods').delete().eq('user_id', userId)
   if (error) throw new Error(`Failed to remove payment method: ${error.message}`)
+}
+
+/**
+ * What the service role needs to act on the stored card. Never sent to a
+ * browser: it carries the vault id.
+ */
+export interface PaymentMethodRecord {
+  customerVaultId: string
+  unvoidedAuthTransactionId: string | null
+  verifiedAt: string | null
+}
+
+export async function getPaymentMethodRecord(admin: Db, userId: string): Promise<PaymentMethodRecord | null> {
+  const { data, error } = await admin
+    .from('bidder_payment_methods')
+    .select('customer_vault_id, unvoided_auth_transaction_id, verified_at')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (error) throw new Error(`Failed to load payment method record: ${error.message}`)
+  if (!data) return null
+  const row = data as Pick<TableRow, 'customer_vault_id' | 'unvoided_auth_transaction_id' | 'verified_at'>
+  return {
+    customerVaultId: row.customer_vault_id,
+    unvoidedAuthTransactionId: row.unvoided_auth_transaction_id ?? null,
+    verifiedAt: row.verified_at ?? null,
+  }
+}
+
+export interface SaveCardInput {
+  userId: string
+  paymentToken: string
+  firstName: string
+  lastName: string
+  email: string
+}
+
+/** The gateway and database calls saveCardOnFile makes, injected so the flow is unit-testable. */
+export interface SaveCardDeps {
+  /** addCustomerVault: token -> vault record. Throws NmiError when the gateway rejects the token. */
+  addVault: (options: { paymentToken: string; firstName: string; lastName: string; email: string }) => Promise<{
+    customerVaultId: string
+    brand?: string
+    last4?: string
+    expMonth?: number
+    expYear?: number
+  }>
+  /** validateCard: is the vaulted card chargeable? Declines come back as ok: false, not as throws. */
+  validate: (options: { customerVaultId: string; processorId?: string }) => Promise<{
+    ok: boolean
+    message: string
+    unvoidedAuthTransactionId?: string
+  }>
+  /** The bidder's current row, if any. */
+  existing: PaymentMethodRecord | null
+  upsert: (input: UpsertPaymentMethodInput) => Promise<PaymentMethodPublic>
+  /** deleteCustomerVault, best effort: failures are logged and never change the outcome. */
+  deleteVault?: (customerVaultId: string) => Promise<unknown>
+  /** Merchant account the verification is routed to (ITA's own MID). */
+  processorId?: string
+  /** Clock for verified_at; injectable for tests. */
+  now?: () => string
+}
+
+export type SaveCardResult =
+  | { status: 200; body: PaymentMethodPublic }
+  | { status: 402 | 500 | 502; body: { error: string } }
+
+const GATEWAY_UNAVAILABLE_MESSAGE = 'Card service is unavailable. Try again in a moment.'
+const VERIFY_UNAVAILABLE_MESSAGE = 'Card verification is unavailable right now. Try again in a moment.'
+const SAVE_FAILED_MESSAGE = 'Could not save your card. Try again.'
+
+/**
+ * POST /api/payments/methods without the HTTP: token -> vault -> verify ->
+ * store, with every gateway and database call injected.
+ *
+ * The one rule: the stored row changes ONLY after the gateway has verified
+ * the new card. A decline (402) or an outage (502) leaves whatever the bidder
+ * had on file untouched, so replacing a good card with a bad one can never
+ * take away their ability to bid or show the old card as verified when it is
+ * not. A vault record that will not be referenced (new card declined, or the
+ * old card after a successful replace) is deleted at the gateway, best effort.
+ */
+export async function saveCardOnFile(deps: SaveCardDeps, input: SaveCardInput): Promise<SaveCardResult> {
+  const now = deps.now ?? (() => new Date().toISOString())
+
+  const discardVault = async (customerVaultId: string) => {
+    if (!deps.deleteVault) return
+    try {
+      await deps.deleteVault(customerVaultId)
+    } catch (error) {
+      console.warn('[payments] could not delete customer vault record', {
+        customerVaultId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  // 1. Token -> Customer Vault record. A rejected token is a card problem
+  //    (402); anything else is the gateway being unreachable (502).
+  let vault: Awaited<ReturnType<SaveCardDeps['addVault']>>
+  try {
+    vault = await deps.addVault({
+      paymentToken: input.paymentToken,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      email: input.email,
+    })
+  } catch (error) {
+    if (error instanceof NmiError && error.response) {
+      return { status: 402, body: { error: friendlyGatewayMessage(error.response.responsetext) } }
+    }
+    return { status: 502, body: { error: GATEWAY_UNAVAILABLE_MESSAGE } }
+  }
+
+  // 2. Verify the card is chargeable. Nothing is stored unless this passes.
+  let verification: Awaited<ReturnType<SaveCardDeps['validate']>>
+  try {
+    verification = await deps.validate({ customerVaultId: vault.customerVaultId, processorId: deps.processorId })
+  } catch {
+    await discardVault(vault.customerVaultId)
+    return { status: 502, body: { error: VERIFY_UNAVAILABLE_MESSAGE } }
+  }
+
+  if (!verification.ok) {
+    await discardVault(vault.customerVaultId)
+    return { status: 402, body: { error: friendlyGatewayMessage(verification.message) } }
+  }
+
+  // 3. Store the verified card. A prior unvoided $1.00 auth is kept on the
+  //    row unless this verification produced a new one; support may still
+  //    need to void it.
+  let saved: PaymentMethodPublic
+  try {
+    saved = await deps.upsert({
+      userId: input.userId,
+      customerVaultId: vault.customerVaultId,
+      brand: vault.brand ?? null,
+      last4: vault.last4 ?? null,
+      expMonth: vault.expMonth ?? null,
+      expYear: vault.expYear ?? null,
+      verifiedAt: now(),
+      unvoidedAuthTransactionId:
+        verification.unvoidedAuthTransactionId ?? deps.existing?.unvoidedAuthTransactionId ?? null,
+    })
+  } catch {
+    await discardVault(vault.customerVaultId)
+    return { status: 500, body: { error: SAVE_FAILED_MESSAGE } }
+  }
+
+  // 4. The replaced card's vault record is no longer referenced.
+  if (deps.existing && deps.existing.customerVaultId !== vault.customerVaultId) {
+    await discardVault(deps.existing.customerVaultId)
+  }
+
+  return { status: 200, body: saved }
 }
 
 const DEFAULT_DECLINE_MESSAGE = 'Your card was declined. Check the details or try another card.'

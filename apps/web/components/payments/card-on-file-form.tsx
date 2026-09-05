@@ -147,6 +147,9 @@ export function CardOnFileForm({
   const configuredRef = useRef(false)
   const submitStateRef = useRef<SubmitState>('idle')
   const namesRef = useRef({ firstName, lastName })
+  // Collect.js holds on to the callback it was configured with, so the
+  // callback reads the latest onSaved through a ref instead of a closure.
+  const onSavedRef = useRef(onSaved)
   const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -156,6 +159,10 @@ export function CardOnFileForm({
   useEffect(() => {
     namesRef.current = { firstName, lastName }
   }, [firstName, lastName])
+
+  useEffect(() => {
+    onSavedRef.current = onSaved
+  }, [onSaved])
 
   useEffect(
     () => () => {
@@ -191,7 +198,7 @@ export function CardOnFileForm({
           return
         }
 
-        onSaved({
+        onSavedRef.current({
           brand: data.brand ?? null,
           last4: data.last4 ?? null,
           expMonth: data.expMonth ?? null,
@@ -205,7 +212,7 @@ export function CardOnFileForm({
         setSubmitState('idle')
       }
     },
-    [onSaved]
+    []
   )
 
   /**
@@ -343,19 +350,26 @@ export function CardOnFileForm({
         </div>
       </div>
 
+      {/* The inputs live inside NMI iframes, so a <label htmlFor> has nothing
+          to point at; each container is a named group instead. */}
       <div className="space-y-2">
-        <Label htmlFor={FIELD_IDS.ccnumber}>{FIELD_LABELS.ccnumber}</Label>
-        <HostedField id={FIELD_IDS.ccnumber} status={fieldStatus.ccnumber} ready={fieldsReady} />
+        <FieldCaption id={`${FIELD_IDS.ccnumber}-label`}>{FIELD_LABELS.ccnumber}</FieldCaption>
+        <HostedField
+          id={FIELD_IDS.ccnumber}
+          labelId={`${FIELD_IDS.ccnumber}-label`}
+          status={fieldStatus.ccnumber}
+          ready={fieldsReady}
+        />
       </div>
 
       <div className="grid gap-4 grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor={FIELD_IDS.ccexp}>{FIELD_LABELS.ccexp}</Label>
-          <HostedField id={FIELD_IDS.ccexp} status={fieldStatus.ccexp} ready={fieldsReady} />
+          <FieldCaption id={`${FIELD_IDS.ccexp}-label`}>{FIELD_LABELS.ccexp}</FieldCaption>
+          <HostedField id={FIELD_IDS.ccexp} labelId={`${FIELD_IDS.ccexp}-label`} status={fieldStatus.ccexp} ready={fieldsReady} />
         </div>
         <div className="space-y-2">
-          <Label htmlFor={FIELD_IDS.cvv}>{FIELD_LABELS.cvv}</Label>
-          <HostedField id={FIELD_IDS.cvv} status={fieldStatus.cvv} ready={fieldsReady} />
+          <FieldCaption id={`${FIELD_IDS.cvv}-label`}>{FIELD_LABELS.cvv}</FieldCaption>
+          <HostedField id={FIELD_IDS.cvv} labelId={`${FIELD_IDS.cvv}-label`} status={fieldStatus.cvv} ready={fieldsReady} />
         </div>
       </div>
 
@@ -396,22 +410,44 @@ export function CardOnFileForm({
   )
 }
 
-function HostedField({ id, status, ready }: { id: string; status: FieldStatus; ready: boolean }) {
+/** Visible caption for a hosted field; the group below is labelled by it. */
+function FieldCaption({ id, children }: { id: string; children: string }) {
+  return (
+    <span id={id} className="block text-sm font-medium leading-none">
+      {children}
+    </span>
+  )
+}
+
+function HostedField({
+  id,
+  labelId,
+  status,
+  ready,
+}: {
+  id: string
+  labelId: string
+  status: FieldStatus
+  ready: boolean
+}) {
   const invalid = status.valid === false
+  const showError = invalid && status.message.length > 0
+  const errorId = `${id}-error`
   return (
     <div>
       <div
         id={id}
+        role="group"
+        aria-labelledby={labelId}
+        aria-describedby={showError ? errorId : undefined}
         className={cn(
           'min-h-[42px] rounded-md',
           !ready && 'animate-pulse bg-slate-100',
           invalid && 'ring-1 ring-red-400 ring-offset-1'
         )}
-        aria-invalid={invalid || undefined}
-        aria-describedby={invalid ? `${id}-error` : undefined}
       />
-      {invalid && status.message && (
-        <p id={`${id}-error`} className="mt-1 text-xs text-red-700">
+      {showError && (
+        <p id={errorId} className="mt-1 text-xs text-red-700">
           {status.message}
         </p>
       )}

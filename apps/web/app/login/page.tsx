@@ -1,4 +1,5 @@
 import { AuthForm } from '@/components/auth/auth-form'
+import { sanitizeReturnPath } from '@/lib/payments/methods'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
@@ -10,7 +11,8 @@ interface LoginPageProps {
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams
-  const redirectTo = params?.redirectedFrom || '/dashboard'
+  // Same-site paths only, so ?redirectedFrom= can never send a fresh login off-site.
+  const redirectTo = sanitizeReturnPath(params?.redirectedFrom) ?? '/dashboard'
   const supabase = await createClient()
 
   const {

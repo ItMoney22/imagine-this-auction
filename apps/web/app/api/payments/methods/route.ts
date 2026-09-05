@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { createClient } from '@/lib/supabase/server'
-import { addCustomerVault, NmiError, validateCard } from '@/lib/payments/nmi'
+import { addCustomerVault, deleteCustomerVault, isApproved, validateCard } from '@/lib/payments/nmi'
 import {
   deletePaymentMethod,
-  friendlyGatewayMessage,
   getPaymentMethodPublic,
+  getPaymentMethodRecord,
   PaymentMethodRequestSchema,
   paymentMethodsAdmin,
+  saveCardOnFile,
   upsertPaymentMethod,
+  type PaymentMethodRecord,
 } from '@/lib/payments/methods'
 import { paymentMethodsLimiter } from '@/lib/payments/rate-limit'
 
@@ -22,12 +24,15 @@ export const maxDuration = 60
  *
  *   GET     -> { brand, last4, expMonth, expYear, verified, verifiedAt } or 404
  *   POST    -> body { paymentToken, firstName, lastName }; vaults the Collect.js
- *              token, verifies the card, stores the vault reference. 200 when
- *              verified, 402 with the gateway's message when declined.
- *   DELETE  -> removes the row. Does not contact the gateway.
+ *              token, verifies the card, and stores the vault reference ONLY
+ *              when verification passes. 200 verified; 402 declined (existing
+ *              card untouched); 502 gateway unreachable (existing card untouched).
+ *   DELETE  -> removes the row, then deletes the vault record at the gateway
+ *              (best effort).
  *
  * The card number never reaches this route: Collect.js tokenizes it in the
- * browser and only the one-time token is posted here.
+ * browser and only the one-time token is posted here. The flow itself lives
+ * in lib/payments/methods.ts (saveCardOnFile) where it is unit-tested.
  */
 
 async function requireUser() {
@@ -41,6 +46,27 @@ async function requireUser() {
     return { ok: false as const, response: NextResponse.json({ error: 'Authentication required' }, { status: 401 }) }
   }
   return { ok: true as const, supabase, user }
+}
+
+/**
+ * Delete a Customer Vault record, best effort. A decline is logged (the
+ * gateway may already have dropped it); a throw is logged. Neither changes
+ * the response the bidder gets.
+ */
+async function discardVaultQuietly(customerVaultId: string): Promise<void> {
+  try {
+    const response = await deleteCustomerVault({ customerVaultId })
+    if (!isApproved(response)) {
+      console.warn('[payments] customer vault delete was not approved', {
+        code: response.response_code,
+        message: response.responsetext,
+      })
+    }
+  } catch (error) {
+    console.warn('[payments] customer vault delete failed', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
 }
 
 export async function GET() {
@@ -89,74 +115,46 @@ export async function POST(request: NextRequest) {
   const { data: profile } = await supabase.from('users').select('email').eq('id', user.id).maybeSingle()
   const email = (profile as { email?: string | null } | null)?.email ?? user.email ?? ''
 
-  // 1. Token -> Customer Vault record. A rejected token is a card problem
-  //    (402); anything else is the gateway being unreachable (502).
-  let vault: Awaited<ReturnType<typeof addCustomerVault>>
+  const admin = paymentMethodsAdmin()
+
+  let existing: PaymentMethodRecord | null
   try {
-    vault = await addCustomerVault({ paymentToken, firstName, lastName, email })
+    existing = await getPaymentMethodRecord(admin, user.id)
   } catch (error) {
-    if (error instanceof NmiError && error.response) {
-      console.warn('[payments] customer vault add rejected', {
-        userId: user.id,
-        code: error.response.response_code,
-      })
-      return NextResponse.json({ error: friendlyGatewayMessage(error.response.responsetext) }, { status: 402 })
-    }
-    console.error('[payments] customer vault add failed', error)
-    return NextResponse.json({ error: 'Card service is unavailable. Try again in a moment.' }, { status: 502 })
+    console.error('[payments] failed to load existing payment method', error)
+    return NextResponse.json({ error: 'Could not load your payment method' }, { status: 500 })
   }
 
-  // 2. Verify the card is chargeable. Routed to ITA's own merchant account when
-  //    configured so the $1.00 fallback auth never lands on an auctioneer's MID.
-  const processorId = process.env.NMI_PLATFORM_PROCESSOR_ID?.trim() || undefined
-  let verification: Awaited<ReturnType<typeof validateCard>> | null = null
-  try {
-    verification = await validateCard({ customerVaultId: vault.customerVaultId, processorId })
-  } catch (error) {
-    console.error('[payments] card verification call failed', error)
-  }
+  const result = await saveCardOnFile(
+    {
+      addVault: (options) => addCustomerVault(options),
+      validate: (options) => validateCard(options),
+      existing,
+      upsert: (input) => upsertPaymentMethod(admin, input),
+      deleteVault: discardVaultQuietly,
+      // Routed to ITA's own merchant account when configured so the $1.00
+      // fallback auth never lands on an auctioneer's MID.
+      processorId: process.env.NMI_PLATFORM_PROCESSOR_ID?.trim() || undefined,
+    },
+    { userId: user.id, paymentToken, firstName, lastName, email }
+  )
 
-  // 3. Persist the vault reference either way; verified_at only when the
-  //    gateway approved. An unverified row still shows the bidder which card
-  //    they entered so they can replace it.
-  let saved
-  try {
-    saved = await upsertPaymentMethod(paymentMethodsAdmin(), {
-      userId: user.id,
-      customerVaultId: vault.customerVaultId,
-      brand: vault.brand ?? null,
-      last4: vault.last4 ?? null,
-      expMonth: vault.expMonth ?? null,
-      expYear: vault.expYear ?? null,
-      verifiedAt: verification?.ok ? new Date().toISOString() : null,
-      unvoidedAuthTransactionId: verification?.unvoidedAuthTransactionId ?? null,
-    })
-  } catch (error) {
-    console.error('[payments] failed to store payment method', error)
-    return NextResponse.json({ error: 'Could not save your card. Try again.' }, { status: 500 })
+  if (result.status !== 200) {
+    console.warn('[payments] card was not saved', { userId: user.id, status: result.status, error: result.body.error })
   }
-
-  if (!verification) {
-    return NextResponse.json(
-      { error: 'Your card was saved but could not be verified yet. Try again in a moment.', ...saved },
-      { status: 502 }
-    )
-  }
-
-  if (!verification.ok) {
-    console.warn('[payments] card verification declined', { userId: user.id, message: verification.message })
-    return NextResponse.json({ error: friendlyGatewayMessage(verification.message), ...saved }, { status: 402 })
-  }
-
-  return NextResponse.json(saved)
+  return NextResponse.json(result.body, { status: result.status })
 }
 
 export async function DELETE() {
   const auth = await requireUser()
   if (!auth.ok) return auth.response
 
+  const admin = paymentMethodsAdmin()
   try {
-    await deletePaymentMethod(paymentMethodsAdmin(), auth.user.id)
+    const existing = await getPaymentMethodRecord(admin, auth.user.id)
+    await deletePaymentMethod(admin, auth.user.id)
+    // The row is gone; the gateway record is cleanup and must not fail the request.
+    if (existing) await discardVaultQuietly(existing.customerVaultId)
     return NextResponse.json({ ok: true })
   } catch (error) {
     console.error('[payments] failed to remove payment method', error)

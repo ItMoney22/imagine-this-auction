@@ -46,16 +46,43 @@ export function canPlaceBid(input: BidGateInput): BidGateResult {
  * Dollars typed into the custom-bid input -> integer cents, or null when the
  * text is not a positive dollar amount with at most two decimals.
  *
- * Accepts an optional leading `$`, thousands separators, and surrounding
- * whitespace. Rejects anything else (letters, exponents, negatives, more than
- * two decimals, zero) so a typo can never become a bid. The conversion is
- * Math.round(dollars * 100): the input is limited to two decimals, so the
- * product is within a half-cent of an integer and rounding is exact.
+ * Accepts an optional leading `$`, surrounding whitespace, and commas ONLY as
+ * well-formed thousands separators (`1,250.50`). A comma anywhere else
+ * (`12,50`, `1,00.00`) is a typo and is rejected rather than dropped: silently
+ * reading `12,50` as $1,250.00 would be a 100x mistake. Letters, exponents,
+ * negatives, more than two decimals, and zero are rejected too, so a typo can
+ * never become a bid. The conversion is Math.round(dollars * 100): with at
+ * most two decimals the product is within a half-cent of an integer, so the
+ * rounding is exact.
  */
 export function parseBidDollars(input: string): number | null {
-  const cleaned = input.replace(/[$,\s]/g, '')
-  if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null
-  const cents = Math.round(Number(cleaned) * 100)
+  const cleaned = input.replace(/[$\s]/g, '')
+  if (!/^(\d{1,3}(,\d{3})*|\d+)(\.\d{1,2})?$/.test(cleaned)) return null
+  const cents = Math.round(Number(cleaned.replace(/,/g, '')) * 100)
   if (!Number.isSafeInteger(cents) || cents <= 0) return null
   return cents
+}
+
+export interface NextBidInput {
+  /** Whether the lot has any bid yet (bid_count > 0 or a non-empty bid list). */
+  hasBids: boolean
+  startingBidCents: number
+  /** lots.current_high_bid; 0 or null before the first bid. */
+  currentHighCents: number | null | undefined
+  incrementCents: number
+}
+
+/**
+ * The smallest bid the lot accepts right now, in cents.
+ *
+ * Opening-bid rule (recorded 2026-09-05): the first bid on a lot is accepted
+ * at exactly starting_bid; every later bid must be current high + increment.
+ * The bidding panel, the max-bid route, and place_bid (Task 4c) all follow
+ * this so the number on the button is the number the database accepts. A
+ * current high below the starting bid (stale or seeded data) is lifted to the
+ * starting bid before the increment is added.
+ */
+export function nextBidCents({ hasBids, startingBidCents, currentHighCents, incrementCents }: NextBidInput): number {
+  if (!hasBids) return startingBidCents
+  return Math.max(currentHighCents ?? 0, startingBidCents) + incrementCents
 }

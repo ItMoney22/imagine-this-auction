@@ -5,6 +5,7 @@ import { expect, test } from '@playwright/test'
 import {
   addCustomerVault,
   centsToAmount,
+  deleteCustomerVault,
   describeSignatureNonce,
   NMI_SANDBOX_SECURITY_KEY,
   NmiError,
@@ -621,5 +622,37 @@ test.describe('handler registry', () => {
     const result = await dispatchNmiEvent(event(uniqueType))
     expect(called).toBe(true)
     expect(result.handled).toBe(true)
+  })
+})
+
+test.describe('deleteCustomerVault', () => {
+  test('sends customer_vault=delete_customer with the vault id and returns the parsed reply', async () => {
+    const { fetchImpl, calls } = fakeFetch(
+      'response=1&responsetext=Customer+Deleted&authcode=&transactionid=0&avsresponse=&cvvresponse=&orderid=&type=&response_code=100'
+    )
+
+    const result = await deleteCustomerVault({ customerVaultId: '1497262939' }, { ...CLIENT, fetchImpl })
+
+    expect(result.response).toBe(1)
+    expect(calls).toHaveLength(1)
+    const { fields } = calls[0]
+    expect(fields.get('customer_vault')).toBe('delete_customer')
+    expect(fields.get('customer_vault_id')).toBe('1497262939')
+    expect(fields.get('security_key')).toBe('test-key')
+    // Only the vault id identifies the record; nothing card-shaped is sent.
+    expect(fields.has('payment_token')).toBe(false)
+    expect(fields.has('type')).toBe(false)
+    expect(fields.has('amount')).toBe(false)
+  })
+
+  test('a rejected delete is returned, not thrown, so callers can log it and move on', async () => {
+    const { fetchImpl } = fakeFetch(
+      'response=3&responsetext=Invalid+Customer+Vault+Id+REFID%3A123&authcode=&transactionid=0&avsresponse=&cvvresponse=&orderid=&type=&response_code=300'
+    )
+
+    const result = await deleteCustomerVault({ customerVaultId: 'missing' }, { ...CLIENT, fetchImpl })
+
+    expect(result.response).toBe(3)
+    expect(result.response_code).toBe(300)
   })
 })

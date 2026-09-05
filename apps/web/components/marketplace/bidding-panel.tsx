@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -14,7 +14,7 @@ import { PremiumDisclosure } from '@/components/marketplace/premium-disclosure'
 import { WorkingBar } from '@/components/payments/working-bar'
 import { formatTimeRemaining } from '@/lib/utils'
 import { formatUsd, premiumPercentForAuction } from '@/lib/pricing/premium'
-import { canPlaceBid, parseBidDollars } from '@/lib/payments/bid-gate'
+import { canPlaceBid, nextBidCents, parseBidDollars } from '@/lib/payments/bid-gate'
 import type { PaymentMethodPublic } from '@/lib/payments/methods'
 import { useToast } from '@/hooks/use-toast'
 import {
@@ -35,8 +35,10 @@ interface PanelLot {
   increment: number
   /** Cents. */
   starting_bid: number
-  /** Cents; null until the first bid. */
+  /** Cents; 0 or null until the first bid. */
   current_high_bid?: number | null
+  /** Maintained by place_bid; 0 until the first bid. */
+  bid_count?: number | null
 }
 
 interface PanelAuction {
@@ -87,7 +89,6 @@ export function BiddingPanel({
   const { toast } = useToast()
 
   const [timeRemaining, setTimeRemaining] = useState('')
-  const [currentHigh, setCurrentHigh] = useState(0)
   const [maxBidInput, setMaxBidInput] = useState('')
   const [isWatching, setIsWatching] = useState(false)
   const [emailNotifications, setEmailNotifications] = useState(false)
@@ -101,22 +102,19 @@ export function BiddingPanel({
   const addCardHref = `/account/payment?next=${encodeURIComponent(lotPath)}`
   const signInHref = `/login?redirectedFrom=${encodeURIComponent(lotPath)}`
 
-  // Calculate current high bid - use lot.current_high_bid as source of truth
-  useEffect(() => {
-    const highFromBids = bids.length > 0
-      ? Math.max(...bids.map(bid => bid.amount))
-      : 0
-    // Use the higher of: lot's current_high_bid, calculated from bids, or starting_bid
-    const highBid = Math.max(
-      lot.current_high_bid || 0,
-      highFromBids,
-      lot.starting_bid
-    )
-    setCurrentHigh(highBid)
-  }, [bids, lot.starting_bid, lot.current_high_bid])
+  // Derived, not stored: the first paint already shows the real figure.
+  // The higher of the lot's current_high_bid, the live bid list, and the
+  // starting bid; with no bids this is the opening bid.
+  const hasBids = bids.length > 0 || (lot.bid_count ?? 0) > 0
+  const currentHigh = useMemo(() => {
+    const highFromBids = bids.length > 0 ? Math.max(...bids.map((bid) => bid.amount)) : 0
+    return Math.max(lot.current_high_bid || 0, highFromBids, lot.starting_bid)
+  }, [bids, lot.current_high_bid, lot.starting_bid])
 
   // Card on file: fetched once per signed-in user, and again whenever the tab
-  // regains focus (the bidder may have just saved a card in another tab).
+  // becomes visible (the bidder may have just saved a card in another tab).
+  // A refetch keeps the current card on screen; only the first lookup shows
+  // the "checking" state.
   useEffect(() => {
     if (!user) {
       setPaymentMethod(null)
@@ -124,7 +122,7 @@ export function BiddingPanel({
       return
     }
     let cancelled = false
-    setCardStatus('loading')
+    setCardStatus((prev) => (prev === 'ready' ? prev : 'loading'))
     fetch('/api/payments/methods', { cache: 'no-store' })
       .then(async (res) => {
         if (cancelled) return
@@ -145,12 +143,15 @@ export function BiddingPanel({
     }
   }, [user?.id, cardRefresh]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const signedIn = Boolean(user)
   useEffect(() => {
-    if (!user) return
-    const onFocus = () => setCardRefresh((n) => n + 1)
-    window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
-  }, [user])
+    if (!signedIn) return
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') setCardRefresh((n) => n + 1)
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange)
+  }, [signedIn])
 
   // Quick-bid deeplink: when arriving from outbid notification with ?quickbid=1,
   // scroll the Quick Bid button into view and toast a hint.
@@ -166,7 +167,7 @@ export function BiddingPanel({
       }
       toast({
         title: 'You were outbid',
-        description: `Tap "Bid ${formatUsd(currentHigh + lot.increment)}" to retake the lead.`,
+        description: `Tap "Bid ${formatUsd(getNextBidAmount())}" to retake the lead.`,
       })
     }, 400)
     return () => clearTimeout(t)
@@ -189,9 +190,15 @@ export function BiddingPanel({
     }
   }, [auctionEndTime])
 
-  const getNextBidAmount = () => {
-    return currentHigh + lot.increment
-  }
+  // Opening-bid rule: the first bid is the starting bid itself; after that,
+  // current high + increment. Shared with the max-bid route (and place_bid).
+  const getNextBidAmount = () =>
+    nextBidCents({
+      hasBids,
+      startingBidCents: lot.starting_bid,
+      currentHighCents: currentHigh,
+      incrementCents: lot.increment,
+    })
 
   const isAuctionLive = () => {
     const now = new Date()
@@ -394,13 +401,13 @@ export function BiddingPanel({
               </div>
             </div>
 
-            {/* Current High Bid */}
+            {/* Current High Bid (the opening bid until someone bids) */}
             <div className="flex justify-between items-center">
-              <span className="text-gray-600">Current High Bid:</span>
+              <span className="text-gray-600">{hasBids ? 'Current High Bid:' : 'Opening Bid:'}</span>
               <span
                 className="text-xl font-bold text-green-600 tabular-nums"
                 aria-live="polite"
-                aria-label={`Current high bid ${formatUsd(currentHigh)}`}
+                aria-label={`${hasBids ? 'Current high bid' : 'Opening bid'} ${formatUsd(currentHigh)}`}
               >
                 {formatUsd(currentHigh)}
               </span>
@@ -601,7 +608,7 @@ export function BiddingPanel({
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg z-50 md:hidden">
           <div className="flex items-center justify-between gap-3">
             <div className="flex-1 min-w-0">
-              <div className="text-xs text-gray-600">Current High</div>
+              <div className="text-xs text-gray-600">{hasBids ? 'Current High' : 'Opening Bid'}</div>
               <div className="font-semibold text-green-600 tabular-nums">
                 {formatUsd(currentHigh)}
               </div>

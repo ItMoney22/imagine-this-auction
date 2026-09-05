@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { canPlaceBid, parseBidDollars, type BidGateInput } from '../../lib/payments/bid-gate'
+import { canPlaceBid, nextBidCents, parseBidDollars, type BidGateInput } from '../../lib/payments/bid-gate'
 
 const bidder = { id: 'user-1' }
 
@@ -91,10 +91,22 @@ test.describe('parseBidDollars', () => {
     expect(parseBidDollars('1234.56')).toBe(123456)
   })
 
-  test('tolerates a dollar sign, thousands separators, and surrounding spaces', () => {
+  test('tolerates a dollar sign, well-formed thousands separators, and surrounding spaces', () => {
     expect(parseBidDollars('$1,250.00')).toBe(125000)
+    expect(parseBidDollars('1,250.50')).toBe(125050)
+    expect(parseBidDollars('1,000,000')).toBe(100000000)
     expect(parseBidDollars(' 40 ')).toBe(4000)
     expect(parseBidDollars('$ 12')).toBe(1200)
+  })
+
+  test('a comma that is not a thousands separator is a typo, never a decimal point or ignored', () => {
+    // "12,50" must not become $1,250.00 (a 100x mistake) by silently dropping the comma.
+    expect(parseBidDollars('12,50')).toBeNull()
+    expect(parseBidDollars('1,2,3')).toBeNull()
+    expect(parseBidDollars('1,00.00')).toBeNull()
+    expect(parseBidDollars(',250')).toBeNull()
+    expect(parseBidDollars('1,')).toBeNull()
+    expect(parseBidDollars('1,2500')).toBeNull()
   })
 
   test('rejects empty, non-numeric, negative, zero, and sub-cent input', () => {
@@ -108,5 +120,31 @@ test.describe('parseBidDollars', () => {
     expect(parseBidDollars('1.234')).toBeNull()
     expect(parseBidDollars('1e3')).toBeNull()
     expect(parseBidDollars('.')).toBeNull()
+  })
+})
+
+/**
+ * Opening-bid rule (recorded 2026-09-05): the first bid on a lot is accepted
+ * at exactly starting_bid; every later bid needs current high + increment.
+ * The panel, the max-bid route, and (Task 4c) place_bid all use this.
+ */
+test.describe('nextBidCents', () => {
+  test('the first bid on a lot is the opening bid itself', () => {
+    expect(nextBidCents({ hasBids: false, startingBidCents: 2500, currentHighCents: 0, incrementCents: 500 })).toBe(2500)
+  })
+
+  test('a seeded current_high_bid without any bids does not move the opening bid', () => {
+    expect(nextBidCents({ hasBids: false, startingBidCents: 2500, currentHighCents: 4000, incrementCents: 500 })).toBe(2500)
+    expect(nextBidCents({ hasBids: false, startingBidCents: 2500, currentHighCents: null, incrementCents: 500 })).toBe(2500)
+  })
+
+  test('once there are bids the next bid is the high bid plus one increment', () => {
+    expect(nextBidCents({ hasBids: true, startingBidCents: 2500, currentHighCents: 2500, incrementCents: 500 })).toBe(3000)
+    expect(nextBidCents({ hasBids: true, startingBidCents: 2500, currentHighCents: 9900, incrementCents: 100 })).toBe(10000)
+  })
+
+  test('a current high below the opening bid is lifted to the opening bid before the increment', () => {
+    expect(nextBidCents({ hasBids: true, startingBidCents: 2500, currentHighCents: 1000, incrementCents: 500 })).toBe(3000)
+    expect(nextBidCents({ hasBids: true, startingBidCents: 2500, currentHighCents: null, incrementCents: 500 })).toBe(3000)
   })
 })

@@ -211,6 +211,28 @@ export async function addCustomerVault(
   }
 }
 
+export interface DeleteCustomerVaultOptions {
+  customerVaultId: string
+}
+
+/**
+ * Remove a Customer Vault record (`customer_vault=delete_customer`), so the
+ * gateway does not keep a chargeable record that nothing in ITA references
+ * any more (a bidder removed or replaced their card, or a new card failed
+ * verification). Declines are returned, not thrown, so callers can log and
+ * carry on; a network failure still throws. Callers treat this as best
+ * effort: the bidder's request must never fail because cleanup did.
+ */
+export async function deleteCustomerVault(
+  options: DeleteCustomerVaultOptions,
+  client?: NmiClientOptions
+): Promise<NmiResponse> {
+  return postTransaction(
+    { customer_vault: 'delete_customer', customer_vault_id: options.customerVaultId },
+    client
+  )
+}
+
 /**
  * A 3xx "gateway rejected" reply to `validate` is read as "this processor
  * does not support validate". Trade-off: a 3xx can also mean a genuine

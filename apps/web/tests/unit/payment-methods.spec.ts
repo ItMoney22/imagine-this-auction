@@ -5,8 +5,12 @@ import {
   PaymentMethodRequestSchema,
   paymentMethodPagePath,
   sanitizeReturnPath,
+  saveCardOnFile,
   toPaymentMethodPublic,
+  type SaveCardDeps,
+  type UpsertPaymentMethodInput,
 } from '../../lib/payments/methods'
+import { NmiError, parseResponse } from '../../lib/payments/nmi'
 import { createRateLimiter, PAYMENT_METHODS_RATE_LIMIT } from '../../lib/payments/rate-limit'
 
 /**
@@ -226,5 +230,238 @@ test.describe('rate limiter', () => {
   test('rejects a non-positive limit or window', () => {
     expect(() => createRateLimiter({ limit: 0, windowMs: 1000 })).toThrow(RangeError)
     expect(() => createRateLimiter({ limit: 5, windowMs: 0 })).toThrow(RangeError)
+  })
+})
+
+/**
+ * POST /api/payments/methods orchestration, with the gateway and the database
+ * injected. The invariant under test: the stored row changes ONLY when the
+ * gateway has verified the new card. A decline or an outage must never
+ * downgrade a bidder who already had a verified card.
+ */
+test.describe('saveCardOnFile', () => {
+  const INPUT = {
+    userId: 'user-1',
+    paymentToken: 'tok_abc',
+    firstName: 'Ada',
+    lastName: 'Lovelace',
+    email: 'ada@example.com',
+  }
+  const NOW = '2026-09-05T12:00:00.000Z'
+  const NEW_VAULT = { customerVaultId: 'vault-new', brand: 'visa', last4: '4242', expMonth: 10, expYear: 2027 }
+  const EXISTING_VERIFIED = {
+    customerVaultId: 'vault-old',
+    unvoidedAuthTransactionId: null,
+    verifiedAt: '2026-08-01T00:00:00.000Z',
+  }
+
+  const DECLINED_VAULT_ADD =
+    'response=2&responsetext=DECLINE+REFID%3A123&authcode=&transactionid=0&avsresponse=&cvvresponse=&orderid=&type=&response_code=200'
+
+  function harness(overrides: Partial<SaveCardDeps> = {}) {
+    const calls = {
+      addVault: [] as unknown[],
+      validate: [] as unknown[],
+      upsert: [] as UpsertPaymentMethodInput[],
+      deleteVault: [] as string[],
+    }
+    const deps: SaveCardDeps = {
+      addVault: async (options) => {
+        calls.addVault.push(options)
+        return NEW_VAULT
+      },
+      validate: async (options) => {
+        calls.validate.push(options)
+        return { ok: true, message: 'SUCCESS' }
+      },
+      existing: null,
+      upsert: async (input) => {
+        calls.upsert.push(input)
+        return {
+          brand: input.brand ?? null,
+          last4: input.last4 ?? null,
+          expMonth: input.expMonth ?? null,
+          expYear: input.expYear ?? null,
+          verified: input.verifiedAt != null,
+          verifiedAt: input.verifiedAt,
+        }
+      },
+      deleteVault: async (customerVaultId) => {
+        calls.deleteVault.push(customerVaultId)
+      },
+      now: () => NOW,
+      ...overrides,
+    }
+    return { deps, calls }
+  }
+
+  test('verified card: vaults, validates against the platform processor, stores verified_at, returns 200', async () => {
+    const { deps, calls } = harness({ processorId: 'mid-platform' })
+    const result = await saveCardOnFile(deps, INPUT)
+
+    expect(result.status).toBe(200)
+    expect(result.body).toEqual({
+      brand: 'visa',
+      last4: '4242',
+      expMonth: 10,
+      expYear: 2027,
+      verified: true,
+      verifiedAt: NOW,
+    })
+    expect(calls.addVault).toEqual([
+      { paymentToken: 'tok_abc', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.com' },
+    ])
+    expect(calls.validate).toEqual([{ customerVaultId: 'vault-new', processorId: 'mid-platform' }])
+    expect(calls.upsert).toHaveLength(1)
+    expect(calls.upsert[0]).toMatchObject({
+      userId: 'user-1',
+      customerVaultId: 'vault-new',
+      verifiedAt: NOW,
+      unvoidedAuthTransactionId: null,
+    })
+    // Nothing to clean up on a first card.
+    expect(calls.deleteVault).toEqual([])
+  })
+
+  test('vault add rejected by the gateway: 402 with the gateway message, nothing stored', async () => {
+    const { deps, calls } = harness({
+      addVault: async () => {
+        throw new NmiError('NMI customer vault add failed: DECLINE', parseResponse(DECLINED_VAULT_ADD))
+      },
+    })
+    const result = await saveCardOnFile(deps, INPUT)
+
+    expect(result.status).toBe(402)
+    expect(result.body).toEqual({ error: 'DECLINE' })
+    expect(calls.validate).toEqual([])
+    expect(calls.upsert).toEqual([])
+    expect(calls.deleteVault).toEqual([])
+  })
+
+  test('vault add HTTP or network failure: 502, nothing stored', async () => {
+    for (const failure of [new NmiError('NMI gateway responded HTTP 503', undefined, 503), new Error('ECONNRESET')]) {
+      const { deps, calls } = harness({
+        addVault: async () => {
+          throw failure
+        },
+      })
+      const result = await saveCardOnFile(deps, INPUT)
+      expect(result.status).toBe(502)
+      expect((result.body as { error: string }).error).toMatch(/unavailable/i)
+      expect(calls.upsert).toEqual([])
+    }
+  })
+
+  test('validate throws: 502, existing row untouched, the orphaned new vault record is removed', async () => {
+    const { deps, calls } = harness({
+      existing: EXISTING_VERIFIED,
+      validate: async () => {
+        throw new Error('ETIMEDOUT')
+      },
+    })
+    const result = await saveCardOnFile(deps, INPUT)
+
+    expect(result.status).toBe(502)
+    expect(calls.upsert).toEqual([])
+    expect(calls.deleteVault).toEqual(['vault-new'])
+  })
+
+  test('validate declines: 402 with the gateway message, existing row untouched, new vault removed', async () => {
+    const { deps, calls } = harness({
+      existing: EXISTING_VERIFIED,
+      validate: async () => ({ ok: false, message: 'DECLINE REFID:987' }),
+    })
+    const result = await saveCardOnFile(deps, INPUT)
+
+    expect(result.status).toBe(402)
+    expect(result.body).toEqual({ error: 'DECLINE' })
+    // The bidder keeps their verified card: no write, and the OLD vault is kept.
+    expect(calls.upsert).toEqual([])
+    expect(calls.deleteVault).toEqual(['vault-new'])
+  })
+
+  test('validate ok via the $1.00 fallback whose void failed: the auth id is stored', async () => {
+    const { deps, calls } = harness({
+      validate: async () => ({ ok: true, message: 'SUCCESS', transactionId: 'auth-1', unvoidedAuthTransactionId: 'auth-1' }),
+    })
+    const result = await saveCardOnFile(deps, INPUT)
+
+    expect(result.status).toBe(200)
+    expect(calls.upsert[0].unvoidedAuthTransactionId).toBe('auth-1')
+  })
+
+  test('a prior unvoided auth id is kept when the new verification produced none', async () => {
+    const { deps, calls } = harness({
+      existing: { ...EXISTING_VERIFIED, unvoidedAuthTransactionId: 'auth-old' },
+    })
+    const result = await saveCardOnFile(deps, INPUT)
+
+    expect(result.status).toBe(200)
+    expect(calls.upsert[0].unvoidedAuthTransactionId).toBe('auth-old')
+  })
+
+  test('successful replace: the previous vault record is deleted, best effort', async () => {
+    const { deps, calls } = harness({ existing: EXISTING_VERIFIED })
+    const result = await saveCardOnFile(deps, INPUT)
+
+    expect(result.status).toBe(200)
+    expect(calls.upsert).toHaveLength(1)
+    expect(calls.deleteVault).toEqual(['vault-old'])
+  })
+
+  test('re-vaulting to the same vault id does not delete it', async () => {
+    const { deps, calls } = harness({ existing: { ...EXISTING_VERIFIED, customerVaultId: 'vault-new' } })
+    const result = await saveCardOnFile(deps, INPUT)
+
+    expect(result.status).toBe(200)
+    expect(calls.deleteVault).toEqual([])
+  })
+
+  test('a failing vault delete never changes the outcome', async () => {
+    const { deps, calls } = harness({
+      existing: EXISTING_VERIFIED,
+      deleteVault: async () => {
+        throw new Error('gateway down')
+      },
+    })
+    const result = await saveCardOnFile(deps, INPUT)
+
+    expect(result.status).toBe(200)
+    expect(calls.upsert).toHaveLength(1)
+  })
+
+  test('no deleteVault dependency is fine', async () => {
+    const { deps } = harness({ existing: EXISTING_VERIFIED, deleteVault: undefined })
+    const result = await saveCardOnFile(deps, INPUT)
+    expect(result.status).toBe(200)
+  })
+
+  test('upsert throws: 500, and the verified-but-unstored vault record is removed', async () => {
+    const { deps, calls } = harness({
+      existing: EXISTING_VERIFIED,
+      upsert: async () => {
+        throw new Error('relation "bidder_payment_methods" does not exist')
+      },
+    })
+    const result = await saveCardOnFile(deps, INPUT)
+
+    expect(result.status).toBe(500)
+    expect((result.body as { error: string }).error).toMatch(/could not save/i)
+    // The old card is still on file, so only the new vault is cleaned up.
+    expect(calls.deleteVault).toEqual(['vault-new'])
+  })
+
+  test('replace with a declined card keeps the existing verified row and its vault', async () => {
+    const { deps, calls } = harness({
+      existing: EXISTING_VERIFIED,
+      addVault: async () => ({ ...NEW_VAULT, last4: '0002' }),
+      validate: async () => ({ ok: false, message: 'Insufficient funds' }),
+    })
+    const result = await saveCardOnFile(deps, INPUT)
+
+    expect(result.status).toBe(402)
+    expect(result.body).toEqual({ error: 'Insufficient funds' })
+    expect(calls.upsert).toEqual([])
+    expect(calls.deleteVault).not.toContain('vault-old')
   })
 })
