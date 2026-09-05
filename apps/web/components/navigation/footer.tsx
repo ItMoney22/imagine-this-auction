@@ -20,9 +20,10 @@ export const FOOTER_LINKS: readonly FooterLink[] = [
   { href: '/contact', label: 'Contact' },
 ]
 
-export const FOOTER_COPYRIGHT = '© 2026 Imagine This Auction'
-
 export function Footer() {
+  // Server component: the year is computed at render time, not hard-coded.
+  const year = new Date().getFullYear()
+
   return (
     <footer
       data-testid="site-footer"
@@ -43,7 +44,7 @@ export function Footer() {
             ))}
           </ul>
         </nav>
-        <p className="text-sm text-slate-500">{FOOTER_COPYRIGHT}</p>
+        <p className="text-sm text-slate-500">© {year} Imagine This Auction</p>
       </div>
     </footer>
   )
