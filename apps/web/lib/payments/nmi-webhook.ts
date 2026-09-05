@@ -27,10 +27,13 @@ export interface NmiEventStore {
    * request holding it may later mark the row processed or release it.
    */
   claim(eventId: string, claimedAt: Date, staleBefore: Date): Promise<boolean>
-  /** Mark processed only if the row is still claimed by `claimedAt` (no-op otherwise). */
-  markProcessed(eventId: string, at: Date, claimedAt: Date): Promise<void>
-  /** Clear the claim on an unprocessed row only if it is still owned by `claimedAt`. */
-  releaseClaim(eventId: string, claimedAt: Date): Promise<void>
+  /**
+   * Mark processed only if the row is still claimed by `claimedAt`. Resolves
+   * false when no row matched (the claim went stale and a retry took it over).
+   */
+  markProcessed(eventId: string, at: Date, claimedAt: Date): Promise<boolean>
+  /** Clear the claim on an unprocessed row only if it is still owned by `claimedAt`. False when not owned. */
+  releaseClaim(eventId: string, claimedAt: Date): Promise<boolean>
   /** Whether the row has already been processed (used to tell a duplicate from an in-flight claim). */
   isProcessed(eventId: string): Promise<boolean>
 }
@@ -127,12 +130,19 @@ export async function processNmiWebhook(request: NmiWebhookRequest, deps: NmiWeb
   }
 
   try {
+    let stillOwned: boolean
     if (result.handled) {
-      await deps.store.markProcessed(event.event_id, now(), claimedAt)
+      stillOwned = await deps.store.markProcessed(event.event_id, now(), claimedAt)
     } else {
-      // No handler yet (Task 4c). Keep the row unprocessed so a later pass can
+      // No handler for this type. Keep the row unprocessed so a later pass can
       // dispatch it, but drop the claim so it does not look in-flight.
-      await deps.store.releaseClaim(event.event_id, claimedAt)
+      stillOwned = await deps.store.releaseClaim(event.event_id, claimedAt)
+    }
+    if (!stillOwned) {
+      // The claim expired mid-handler and a retry took the row over. Nothing
+      // to fix here (the retry re-ran the idempotent handler), but it means a
+      // handler ran longer than NMI_CLAIM_STALE_MS and deserves a look.
+      console.warn('[nmi] claim no longer owned when finishing', { eventId: event.event_id })
     }
   } catch (error) {
     console.error('[nmi] event dispatched but its row could not be updated', {
@@ -209,23 +219,27 @@ export function createSupabaseNmiEventStore(getClient: () => SupabaseClient): Nm
       // Scoped to the owning claim: a request that outlived the stale window
       // cannot mark a row another request has since taken over. Millisecond
       // ISO strings round-trip exactly through timestamptz.
-      const { error } = await db()
+      const { data, error } = await db()
         .from('payment_events')
         .update({ processed: true, processed_at: at.toISOString(), processing_started_at: null })
         .eq('provider_event_id', eventId)
         .eq('processed', false)
         .eq('processing_started_at', claimedAt.toISOString())
+        .select('id')
       if (error) throw failure('mark processed', error)
+      return (data?.length ?? 0) > 0
     },
 
     async releaseClaim(eventId, claimedAt) {
-      const { error } = await db()
+      const { data, error } = await db()
         .from('payment_events')
         .update({ processing_started_at: null })
         .eq('provider_event_id', eventId)
         .eq('processed', false)
         .eq('processing_started_at', claimedAt.toISOString())
+        .select('id')
       if (error) throw failure('release claim', error)
+      return (data?.length ?? 0) > 0
     },
 
     async isProcessed(eventId) {
