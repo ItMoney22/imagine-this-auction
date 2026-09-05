@@ -22,12 +22,17 @@ export interface NmiEventStore {
   insertIfNew(event: NmiWebhookEvent): Promise<void>
   /**
    * Atomically claim the row for processing. Succeeds only when the row is
-   * unprocessed and either unclaimed or claimed before `staleBefore`.
+   * unprocessed and either unclaimed or claimed before `staleBefore`. The
+   * `claimedAt` timestamp written here is the ownership token: only the
+   * request holding it may later mark the row processed or release it.
    */
-  claim(eventId: string, now: Date, staleBefore: Date): Promise<boolean>
-  markProcessed(eventId: string, at: Date): Promise<void>
-  /** Clear the claim on an unprocessed row so a retry can take it. */
-  releaseClaim(eventId: string): Promise<void>
+  claim(eventId: string, claimedAt: Date, staleBefore: Date): Promise<boolean>
+  /** Mark processed only if the row is still claimed by `claimedAt` (no-op otherwise). */
+  markProcessed(eventId: string, at: Date, claimedAt: Date): Promise<void>
+  /** Clear the claim on an unprocessed row only if it is still owned by `claimedAt`. */
+  releaseClaim(eventId: string, claimedAt: Date): Promise<void>
+  /** Whether the row has already been processed (used to tell a duplicate from an in-flight claim). */
+  isProcessed(eventId: string): Promise<boolean>
 }
 
 export interface NmiWebhookRequest {
@@ -44,7 +49,7 @@ export interface NmiWebhookDeps {
 }
 
 export interface NmiWebhookOutcome {
-  status: 200 | 400 | 401 | 500
+  status: 200 | 400 | 401 | 409 | 500
   body: Record<string, unknown>
 }
 
@@ -83,10 +88,12 @@ export async function processNmiWebhook(request: NmiWebhookRequest, deps: NmiWeb
   }
   const event = parsed.data
 
+  // The app clock (not DB now()) stamps both the claim and the stale cutoff so
+  // the same value can later prove ownership of the claim.
+  const claimedAt = now()
   let claimed: boolean
   try {
     await deps.store.insertIfNew(event)
-    const claimedAt = now()
     claimed = await deps.store.claim(event.event_id, claimedAt, new Date(claimedAt.getTime() - NMI_CLAIM_STALE_MS))
   } catch (error) {
     console.error('[nmi] failed to store or claim webhook event', { eventId: event.event_id, error })
@@ -94,8 +101,20 @@ export async function processNmiWebhook(request: NmiWebhookRequest, deps: NmiWeb
   }
 
   if (!claimed) {
-    // Already processed, or another delivery holds a live claim.
-    return { status: 200, body: { ok: true, duplicate: true } }
+    // Either the event was already processed (a true duplicate: acknowledge it
+    // so NMI stops retrying) or another delivery holds a live claim (answer
+    // retryable so NMI comes back after that delivery finishes or fails).
+    let processed: boolean
+    try {
+      processed = await deps.store.isProcessed(event.event_id)
+    } catch (error) {
+      console.error('[nmi] could not read event state after a failed claim', { eventId: event.event_id, error })
+      return { status: 500, body: { error: 'Unable to read event' } }
+    }
+    if (processed) {
+      return { status: 200, body: { ok: true, duplicate: true } }
+    }
+    return { status: 409, body: { error: 'Event in progress, retry later' } }
   }
 
   let result: NmiDispatchResult
@@ -103,17 +122,17 @@ export async function processNmiWebhook(request: NmiWebhookRequest, deps: NmiWeb
     result = await dispatch(event)
   } catch (error) {
     console.error('[nmi] webhook handler failed', { eventId: event.event_id, eventType: event.event_type, error })
-    await releaseQuietly(deps.store, event.event_id)
+    await releaseQuietly(deps.store, event.event_id, claimedAt)
     return { status: 500, body: { error: 'Webhook handler failed' } }
   }
 
   try {
     if (result.handled) {
-      await deps.store.markProcessed(event.event_id, now())
+      await deps.store.markProcessed(event.event_id, now(), claimedAt)
     } else {
       // No handler yet (Task 4c). Keep the row unprocessed so a later pass can
       // dispatch it, but drop the claim so it does not look in-flight.
-      await deps.store.releaseClaim(event.event_id)
+      await deps.store.releaseClaim(event.event_id, claimedAt)
     }
   } catch (error) {
     console.error('[nmi] event dispatched but its row could not be updated', {
@@ -121,15 +140,17 @@ export async function processNmiWebhook(request: NmiWebhookRequest, deps: NmiWeb
       handled: result.handled,
       error,
     })
+    // Best effort: free the claim so NMI's retry can re-run the (idempotent) handler.
+    await releaseQuietly(deps.store, event.event_id, claimedAt)
     return { status: 500, body: { error: 'Unable to update event' } }
   }
 
   return { status: 200, body: { ok: true, handled: result.handled } }
 }
 
-async function releaseQuietly(store: NmiEventStore, eventId: string): Promise<void> {
+async function releaseQuietly(store: NmiEventStore, eventId: string, claimedAt: Date): Promise<void> {
   try {
-    await store.releaseClaim(eventId)
+    await store.releaseClaim(eventId, claimedAt)
   } catch (error) {
     console.error('[nmi] could not release claim; it expires after NMI_CLAIM_STALE_MS', { eventId, error })
   }
@@ -170,10 +191,12 @@ export function createSupabaseNmiEventStore(getClient: () => SupabaseClient): Nm
       if (error) throw failure('insert', error)
     },
 
-    async claim(eventId, now, staleBefore) {
+    async claim(eventId, claimedAt, staleBefore) {
+      // One conditional UPDATE: Postgres row locking + re-check under READ
+      // COMMITTED means at most one concurrent request sees a matching row.
       const { data, error } = await db()
         .from('payment_events')
-        .update({ processing_started_at: now.toISOString() })
+        .update({ processing_started_at: claimedAt.toISOString() })
         .eq('provider_event_id', eventId)
         .eq('processed', false)
         .or(`processing_started_at.is.null,processing_started_at.lt.${staleBefore.toISOString()}`)
@@ -182,21 +205,37 @@ export function createSupabaseNmiEventStore(getClient: () => SupabaseClient): Nm
       return (data?.length ?? 0) > 0
     },
 
-    async markProcessed(eventId, at) {
+    async markProcessed(eventId, at, claimedAt) {
+      // Scoped to the owning claim: a request that outlived the stale window
+      // cannot mark a row another request has since taken over. Millisecond
+      // ISO strings round-trip exactly through timestamptz.
       const { error } = await db()
         .from('payment_events')
         .update({ processed: true, processed_at: at.toISOString(), processing_started_at: null })
         .eq('provider_event_id', eventId)
+        .eq('processed', false)
+        .eq('processing_started_at', claimedAt.toISOString())
       if (error) throw failure('mark processed', error)
     },
 
-    async releaseClaim(eventId) {
+    async releaseClaim(eventId, claimedAt) {
       const { error } = await db()
         .from('payment_events')
         .update({ processing_started_at: null })
         .eq('provider_event_id', eventId)
         .eq('processed', false)
+        .eq('processing_started_at', claimedAt.toISOString())
       if (error) throw failure('release claim', error)
+    },
+
+    async isProcessed(eventId) {
+      const { data, error } = await db()
+        .from('payment_events')
+        .select('processed')
+        .eq('provider_event_id', eventId)
+        .maybeSingle()
+      if (error) throw failure('read', error)
+      return data?.processed === true
     },
   }
 }

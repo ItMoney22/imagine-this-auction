@@ -55,6 +55,13 @@ const ERROR_SALE =
 const CLIENT = { securityKey: 'test-key', apiUrl: 'https://gateway.test/api/transact.php' }
 
 test.describe('parseResponse', () => {
+  test('ignores a trailing CRLF so the last field is not polluted', () => {
+    const clean = parseResponse(APPROVED_SALE)
+    const withNewline = parseResponse(`${APPROVED_SALE}\r\n`)
+    expect(withNewline).toEqual(clean)
+    expect(String(withNewline.transactionid)).not.toMatch(/[\r\n]/)
+  })
+
   test('parses an approved sale', () => {
     const r = parseResponse(APPROVED_SALE)
     expect(r.response).toBe(1)
