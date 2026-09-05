@@ -209,7 +209,7 @@ export default function HowItWorksPage() {
                 and a vetted contractor driver brings it to your door with tracking along the way.
               </p>
               <ul className="space-y-3">
-                {['Pickup windows set by the auctioneer', 'Shipping where the auctioneer offers it', 'Local delivery by vetted drivers, tracked to your door'].map((item) => (
+                {['Pickup windows set by the auctioneer', 'Pick up, ship, or local delivery, as the auctioneer sets it up', 'Local delivery by vetted drivers, tracked to your door'].map((item) => (
                   <li key={item} className="flex items-center gap-3 text-slate-700">
                     <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
                     {item}
@@ -252,11 +252,11 @@ export default function HowItWorksPage() {
               <div className="space-y-8">
                 {[
                   { num: '01', icon: UserPlus, title: 'Apply', desc: 'Tell us about your business and your auctioneer license. Applying is free.' },
-                  { num: '02', icon: FileCheck, title: 'Get Approved', desc: 'We review every application before anyone can list. You will hear back from a person.' },
+                  { num: '02', icon: FileCheck, title: 'Get Approved', desc: 'We review every application before you can list.' },
                   { num: '03', icon: Landmark, title: 'Connect Your PaymentCloud Merchant Account', desc: 'Winning bidders are charged through your own merchant account, so the money is yours from the moment it settles.' },
                   { num: '04', icon: Camera, title: 'List Your Lots', desc: 'Photograph each item and AI Quick List drafts the title and description for you to approve. Or upload a CSV. Set opening bids, increments, reserves, and your buyer’s premium.' },
                   { num: '05', icon: Gavel, title: 'Sell', desc: 'Run a timed online auction. Proxy bidding, anti-sniping extensions, and bid notifications are built in.' },
-                  { num: '06', icon: Banknote, title: 'Paid Straight to Your Bank', desc: 'Hammer plus the buyer’s premium settles to your bank from PaymentCloud. At month end we send one statement for 1.2% of hammer. That is the only thing you pay us.' },
+                  { num: '06', icon: Banknote, title: 'Paid Straight to Your Bank', desc: 'Hammer plus the buyer’s premium settles to your bank from PaymentCloud. At month end we send one statement: 1.2% of hammer, plus any AI listing tools you chose to use, billed per use.' },
                 ].map((step) => (
                   <div key={step.num} className="flex gap-5">
                     <div className="flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-500 text-white shadow-lg shadow-purple-500/20">
@@ -290,7 +290,8 @@ export default function HowItWorksPage() {
               <span className="bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent"> before you bid.</span>
             </h2>
             <p className="mt-6 text-lg text-slate-600">
-              Two prices on the whole platform. Here they are.
+              Bidders pay the hammer plus the auctioneer&apos;s premium. Auctioneers pay 1.2% of hammer, plus any
+              AI listing tools they choose to use, billed per use on the same monthly statement.
             </p>
           </div>
 
@@ -356,7 +357,7 @@ export default function HowItWorksPage() {
                     'No per-bid fees',
                     'No webcast fees',
                     'You keep the buyer’s premium',
-                    'One statement a month, billed after the sales',
+                    'One monthly statement: 1.2% of hammer plus any AI listing tools you used',
                   ].map((item) => (
                     <li key={item} className="flex items-center gap-3 text-slate-700">
                       <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />

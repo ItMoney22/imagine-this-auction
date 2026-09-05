@@ -29,7 +29,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
-import { COMPETITOR_CAPTION, COMPETITOR_ROWS } from '@/lib/pricing/competitors'
+import { COMPETITOR_CAPTION, COMPETITOR_ROWS, HIBID_PRICING } from '@/lib/pricing/competitors'
 import { formatUsd } from '@/lib/pricing/premium'
 
 type Auction = Database['public']['Tables']['auctions']['Row']
@@ -151,10 +151,10 @@ function LotCard({ lot }: { lot: DisplayLot }) {
 const SAVINGS_EXAMPLE = {
   monthlyHammer: 50_000,
   auctionsPerMonth: 4,
-  hibidCommissionPct: 2,
-  hibidSoftwareMonthly: 145, // AuctionFlex 360 mid tier
-  hibidWebcastPerAuction: 75,
-  hibidBidFeeCap: 150,
+  hibidCommissionPct: HIBID_PRICING.commissionPct,
+  hibidSoftwareMonthly: HIBID_PRICING.softwareMidCents / 100, // AuctionFlex 360 mid tier
+  hibidWebcastPerAuction: HIBID_PRICING.webcastSetupCents / 100,
+  hibidBidFeeCap: HIBID_PRICING.perBidCapCents / 100,
   hibidBidCapAuctions: 2, // auctions per month assumed to hit the cap
   itaCommissionPct: 1.2,
 }
@@ -292,9 +292,9 @@ export default async function Home() {
             <div className="flex flex-wrap items-center gap-8 mt-14 animate-fade-in">
               {[
                 { value: '1.2%', label: 'Founding Rate' },
-                { value: '$0', label: 'Monthly Fee' },
-                { value: '$0', label: 'Per-Bid Fee' },
-                { value: '$0', label: 'Webcast Fee' },
+                { value: '$0.00', label: 'Monthly Fee' },
+                { value: '$0.00', label: 'Per-Bid Fee' },
+                { value: '$0.00', label: 'Webcast Fee' },
               ].map((stat) => (
                 <div key={stat.label} className="text-center">
                   <p className="text-3xl font-display font-bold text-white tabular-nums">{stat.value}</p>
@@ -334,8 +334,8 @@ export default async function Home() {
               Compare the Fees
             </Badge>
             <h2 className="text-4xl sm:text-5xl font-display font-bold text-slate-900 leading-tight">
-              Why Auctioneers Are
-              <span className="bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent"> Making the Switch</span>
+              Why Auctioneers Choose
+              <span className="bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent"> Imagine This Auction</span>
             </h2>
             <p className="mt-6 text-lg text-slate-600">
               An auctioneer selling {usd(SAVINGS_EXAMPLE.monthlyHammer)} a month pays about{' '}
@@ -463,7 +463,7 @@ export default async function Home() {
               From Application to First Sale
             </h2>
             <p className="mt-4 text-lg text-slate-600">
-              Apply, connect your merchant account, list, sell. No setup fees, no contracts, no software to install.
+              Apply, connect your merchant account, list, sell. No setup fees, no software to install.
             </p>
           </div>
 
@@ -524,7 +524,7 @@ export default async function Home() {
                   Assumptions: {usd(SAVINGS_EXAMPLE.monthlyHammer)} in hammer per month across{' '}
                   {SAVINGS_EXAMPLE.auctionsPerMonth} auctions. HiBid: {SAVINGS_EXAMPLE.hibidCommissionPct}% commission,
                   AuctionFlex 360 mid software tier at {usd(SAVINGS_EXAMPLE.hibidSoftwareMonthly)} per month,{' '}
-                  {usd(SAVINGS_EXAMPLE.hibidWebcastPerAuction)} webcast setup per auction, and the $0.25 per unique bid fee
+                  {usd(SAVINGS_EXAMPLE.hibidWebcastPerAuction)} webcast setup per auction, and the {formatUsd(HIBID_PRICING.perBidFeeCents)} per unique bid fee
                   reaching its {usd(SAVINGS_EXAMPLE.hibidBidFeeCap)} per-auction cap in {SAVINGS_EXAMPLE.hibidBidCapAuctions} of
                   the {SAVINGS_EXAMPLE.auctionsPerMonth} auctions. ImagineThis: {SAVINGS_EXAMPLE.itaCommissionPct}% founding rate
                   on hammer. Card processing costs apply on both and are excluded. {COMPETITOR_CAPTION}.
@@ -692,7 +692,7 @@ export default async function Home() {
                     '1.2% of hammer, locked for life',
                     'You keep the buyer’s premium',
                     'Card payments settle on your own PaymentCloud merchant account',
-                    'One statement a month, nothing else to pay',
+                    'One statement a month: 1.2% of hammer plus any AI listing tools you used',
                   ].map((item) => (
                     <li key={item} className="flex items-center gap-3 text-white/80">
                       <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />

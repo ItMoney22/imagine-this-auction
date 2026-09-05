@@ -1,6 +1,7 @@
 /**
- * Competitor pricing rows for the homepage comparison table and the pricing
- * page. Single source of truth so both pages show the same numbers.
+ * Competitor pricing for the homepage comparison table, the savings example,
+ * and the pricing page. Single source of truth so every surface shows the
+ * same numbers and none of them can drift.
  *
  * Figures are HiBid's published bidder-platform fees and AuctionFlex 360's
  * published software tiers as of September 2026. HiBid has no flat
@@ -8,6 +9,21 @@
  * capped per auction, so that cap is stated on the per-bid row rather than
  * as a separate "per auction" row.
  */
+
+import { formatUsd } from './premium'
+
+/** HiBid / AuctionFlex 360 published figures. Money in integer cents. */
+export const HIBID_PRICING = {
+  commissionPct: 2,
+  perBidFeeCents: 25,
+  perBidCapCents: 15_000,
+  webcastSetupCents: 7_500,
+  listingOnlyCents: 19_500,
+  softwareMinCents: 9_500,
+  /** AuctionFlex 360 middle tier; the worked savings example assumes it. */
+  softwareMidCents: 14_500,
+  softwareMaxCents: 29_500,
+} as const
 
 export interface CompetitorRow {
   /** What is being compared. */
@@ -22,27 +38,27 @@ export const COMPETITOR_ROWS: CompetitorRow[] = [
   {
     feature: 'Platform commission',
     ita: '1.2% of hammer, founding rate locked for life',
-    hibid: '2% of hammer',
+    hibid: `${HIBID_PRICING.commissionPct}% of hammer`,
   },
   {
     feature: 'Per-bid fee',
     ita: 'None',
-    hibid: '$0.25 per unique bid, capped at $150.00 per auction',
+    hibid: `${formatUsd(HIBID_PRICING.perBidFeeCents)} per unique bid, capped at ${formatUsd(HIBID_PRICING.perBidCapCents)} per auction`,
   },
   {
     feature: 'Webcast setup',
     ita: 'None',
-    hibid: '$75.00 per auction',
+    hibid: `${formatUsd(HIBID_PRICING.webcastSetupCents)} per auction`,
   },
   {
     feature: 'Listing-only fee',
     ita: 'None',
-    hibid: '$195.00 per auction',
+    hibid: `${formatUsd(HIBID_PRICING.listingOnlyCents)} per auction`,
   },
   {
     feature: 'Monthly software',
     ita: 'None',
-    hibid: '$95.00 to $295.00 per month',
+    hibid: `${formatUsd(HIBID_PRICING.softwareMinCents)} to ${formatUsd(HIBID_PRICING.softwareMaxCents)} per month`,
   },
 ]
 
