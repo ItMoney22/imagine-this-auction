@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/cron/community",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/notifications/deliver-email-batch",
       "schedule": "*/10 * * * *"
     },

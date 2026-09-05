@@ -1,3 +1,5 @@
+import type { CommunityTables } from '@/lib/community/database'
+
 export type Json =
   | string
   | number
@@ -8,7 +10,7 @@ export type Json =
 
 export interface Database {
   public: {
-    Tables: {
+    Tables: CommunityTables & {
       users: {
         Row: {
           id: string

@@ -1,0 +1,86 @@
+[
+  {
+    "name": "001_initial_schema.sql",
+    "sha256": "91a11570eb469b3db98d4758636b7178b753443d02e053870e5b0f6a7727fb38"
+  },
+  {
+    "name": "002_rls_policies.sql",
+    "sha256": "ae11e80f671ac7ebe1533e5133dea4c26855f49c77fe39b5fd88aed8034ef0f0"
+  },
+  {
+    "name": "003_indexes_functions.sql",
+    "sha256": "e7b7ef814717c1168741e6d573cd633a93b2a6c7366d24f5cfb66f29d4120f05"
+  },
+  {
+    "name": "004_payment_provider.sql",
+    "sha256": "b8ea318dd12b4adff9ca91f78d9f4eab436fe3587b59e99ef72fba6ce197ef5d"
+  },
+  {
+    "name": "005_admin_support.sql",
+    "sha256": "e30b63308ff0580f62d29423f802e48062e9885c687e509a8585662da9fcc40d"
+  },
+  {
+    "name": "006_notifications.sql",
+    "sha256": "85c5c643c9f1f497824c27e56f8e889ec30e0517083dfa7a7a8d96a1ac993ef6"
+  },
+  {
+    "name": "007_ai_assistant.sql",
+    "sha256": "86ad68de6b59484dc30397af18aa2579adb00b23a337d62b5e029a981f6a3334"
+  },
+  {
+    "name": "008_notifications_and_missing_columns.sql",
+    "sha256": "0f031264238ddf2a7d826d3e22d7c2a1988f86d48ab3c96e236a42058bd8ec94"
+  },
+  {
+    "name": "009_auctioneer_license_verification.sql",
+    "sha256": "8c90d1b7f2cf86f7fe48eb39c71b7096b1a1405946f67aedd84650ccbce4379d"
+  },
+  {
+    "name": "010_engagement_features.sql",
+    "sha256": "f006a72f508b616d3278521143788acafb07e32356b3338924bad013e6eed120"
+  },
+  {
+    "name": "011_outbid_notifications_and_ar.sql",
+    "sha256": "4e53de486e6f0e191b2f2b5bd9d7a9c57c773d183995b72bdfb537ef6e121db8"
+  },
+  {
+    "name": "012_watchlist_alerts_and_storage.sql",
+    "sha256": "034701a04234c6d61a55374c5356c88b0fcdfd2a239ce556f4f9383dfa383a18"
+  },
+  {
+    "name": "013_security_hardening.sql",
+    "sha256": "7ac43cf14aca36a8c1199f26056c3d87ca3f930415c899f4ffc09835b5d046ce"
+  },
+  {
+    "name": "014_notification_delivery.sql",
+    "sha256": "33e06b2a5b245ade39bdd3c5a0b03d1e2282eef83d3cad86d51a4692d1dec2af"
+  },
+  {
+    "name": "015_ai_quick_listing_enums.sql",
+    "sha256": "676d58f44aa966831cdde7f591b43eb40b15747fb05ea7e96b5e7b50cd35d7c4"
+  },
+  {
+    "name": "016_ai_quick_listing.sql",
+    "sha256": "949471a2d6d9e59c9d095042c9b988aadd9f94d78d36e3a79722f3dc8665ae7f"
+  },
+  {
+    "name": "017_local_delivery_step1_enum.sql",
+    "sha256": "26e4b162c5445a0ba0d2f986ff0b8c3a108ef45b229ce5a2674cdf480054425e"
+  },
+  {
+    "name": "018_local_delivery_step2_schema.sql",
+    "sha256": "a4a64ad4f9cd716063775ef70f754f109ee3122966638ab0d83574df7eaecb25"
+  },
+  {
+    "name": "019_security_hardening_2.sql",
+    "sha256": "8754de48738aacec321375c97a5c7c01da2ece2d4be48579d307b54207875915"
+  },
+  {
+    "name": "019b_terms_accepted.sql",
+    "sha256": "bbadcf2209a72b7132b7777a6bc95dbdcdc871ce20e9bf881a636aca933152a3"
+  },
+  {
+    "name": "019c_payment_events_claim.sql",
+    "sha256": "7c6a7f7e5f87c00a1a87a1713c0098749d9e61b9be81956a097be8f959764c29"
+  }
+]

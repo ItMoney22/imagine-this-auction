@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { User } from '@/lib/types/database'
 import { Button } from '@/components/ui/button'
 import Image from 'next/image'
+import { CommunityNavLink } from '@/components/community/nav-link'
 import { Menu, X, User as UserIcon, LogOut } from 'lucide-react'
 
 interface NavbarProps {
@@ -59,6 +60,7 @@ export function Navbar({ user }: NavbarProps) {
           </Link>
 
           <div className="hidden md:flex md:items-center md:space-x-8">
+            <CommunityNavLink className="text-sm font-medium text-slate-600 transition-colors hover:text-indigo-600" />
             {navigation.map((item) => (
               <Link
                 key={item.href}
@@ -159,6 +161,7 @@ export function Navbar({ user }: NavbarProps) {
       {isMenuOpen && (
         <div className="md:hidden">
           <div className="mx-4 mt-4 space-y-2 rounded-3xl border border-white/70 bg-white/90 p-6 shadow-[0_25px_60px_rgba(79,70,229,0.12)] backdrop-blur-xl">
+            <CommunityNavLink className="block rounded-xl px-3 py-2 text-base font-medium text-slate-600 hover:bg-indigo-50" onNavigate={() => setIsMenuOpen(false)} />
             {navigation.map((item) => (
               <Link
                 key={item.href}

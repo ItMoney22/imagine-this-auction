@@ -1,0 +1,14 @@
+[
+  {
+    "name": "029_database_rebuild_access.sql",
+    "sha256": "ef6ae8fd5ef324b8307030bfc7938db69a46a139a728c6b243b29db7b799d290"
+  },
+  {
+    "name": "030_community_foundation.sql",
+    "sha256": "c1a8b91ea09203cb239169f6fc37f4b57259e29b60d26057339ef8546d7e105e"
+  },
+  {
+    "name": "031_community_commands.sql",
+    "sha256": "8d0fc9e6a5609096e8c76a8d80321c754b64f153930065a6cc182dd5985334cb"
+  }
+]

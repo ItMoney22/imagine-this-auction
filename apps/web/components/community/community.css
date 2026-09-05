@@ -1,0 +1,11 @@
+/* Forms and focused controls stay below the sticky site navigation. */
+html:has([data-community]) {
+  scroll-behavior: auto;
+  scroll-padding-top: 6rem;
+}
+[data-community] :is(input, textarea, select, button, summary) {
+  scroll-margin-top: 6rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-community] .animate-pulse { animation: none; }
+}
