@@ -384,6 +384,7 @@ export interface Database {
           processed_at: string | null
           provider: string
           provider_event_id: string
+          processing_started_at: string | null
         }
         Insert: {
           id: string
@@ -394,6 +395,7 @@ export interface Database {
           processed_at?: string | null
           provider?: string
           provider_event_id: string
+          processing_started_at?: string | null
         }
         Update: {
           id?: string
@@ -404,6 +406,7 @@ export interface Database {
           processed_at?: string | null
           provider?: string
           provider_event_id?: string
+          processing_started_at?: string | null
         }
       }
       payouts_due: {
