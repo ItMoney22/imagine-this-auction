@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDate } from '@/lib/utils'
-import { formatUsd, premiumPercentForAuction } from '@/lib/pricing/premium'
+import { formatPremiumPercent, formatUsd, premiumPercentForAuction } from '@/lib/pricing/premium'
 import {
   ArrowLeft,
   Gavel,
@@ -68,12 +68,13 @@ export function LotDetail({
   // the server. The BiddingPanel in the sidebar subscribes to new bids and
   // keeps its own current-high-bid figure live, so once a lot has bids this
   // value can fall behind it. To keep the page from ever showing two
-  // different current bids, the large figure in the header below is rendered
-  // only while there are no bids (an opening bid cannot change under the
-  // reader). Task 4b renders PremiumDisclosure inside BiddingPanel with the
-  // live high bid; until then it is shown here from this snapshot.
+  // different totals, the opening-bid figure and the full premium disclosure
+  // are rendered here only while there are no bids (an opening bid cannot
+  // change under the reader). Once bids exist, BiddingPanel renders the
+  // disclosure against the live next bid, and this header states only the
+  // percent.
   const hasBids = Number(lot.bid_count) > 0 && Number(lot.current_high_bid) > 0
-  const hammerCents = hasBids ? Number(lot.current_high_bid) : Number(lot.starting_bid) || 0
+  const openingBidCents = Number(lot.starting_bid) || 0
   // null when the auction record did not arrive whole; never guessed.
   const premiumPct = premiumPercentForAuction(auction)
 
@@ -121,18 +122,25 @@ export function LotDetail({
                   <div>
                     <div className="text-sm text-gray-600">Opening Bid</div>
                     <div className="text-2xl font-bold text-gray-900 tabular-nums">
-                      {formatUsd(hammerCents)}
+                      {formatUsd(openingBidCents)}
                     </div>
                   </div>
                 </div>
               )}
               {premiumPct !== null ? (
-                <PremiumDisclosure
-                  className="mt-3"
-                  hammerCents={hammerCents}
-                  premiumPct={premiumPct}
-                  bidLabel={hasBids ? 'current bid' : 'opening bid'}
-                />
+                hasBids ? (
+                  <p className="mt-3 text-sm text-gray-700">
+                    Buyer&apos;s premium {formatPremiumPercent(premiumPct)}. Your all-in total appears with the
+                    bid button.
+                  </p>
+                ) : (
+                  <PremiumDisclosure
+                    className="mt-3"
+                    hammerCents={openingBidCents}
+                    premiumPct={premiumPct}
+                    bidLabel="opening bid"
+                  />
+                )
               ) : (
                 <p className="mt-3 text-sm text-gray-600">
                   Buyer&apos;s premium is set by the auctioneer; see the auction terms.

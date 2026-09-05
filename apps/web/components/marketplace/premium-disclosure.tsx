@@ -12,8 +12,8 @@ interface PremiumDisclosureProps {
   hammerCents: number
   /** The auction's buyer_premium_percent. Comes from the auction record. */
   premiumPct: number
-  /** Whether hammerCents is the current high bid or the opening bid. */
-  bidLabel?: 'current bid' | 'opening bid'
+  /** Whether hammerCents is the current high bid, the opening bid, or the bid about to be placed. */
+  bidLabel?: 'current bid' | 'opening bid' | 'your bid'
   className?: string
 }
 
