@@ -20,10 +20,26 @@ import { WatchButton } from '@/components/marketplace/watch-button'
 import { LotImageGallery } from '@/components/marketplace/lot-image-gallery'
 import { PremiumDisclosure } from '@/components/marketplace/premium-disclosure'
 import type { LotImageRecord } from '@/lib/ai/quick-listing'
+import type { Database } from '@/lib/types/database'
+
+type LotRow = Database['public']['Tables']['lots']['Row']
+type AuctionRow = Database['public']['Tables']['auctions']['Row']
+type AuctioneerRow = Database['public']['Tables']['auctioneers']['Row']
+
+/** The lot as app/lots/[id]/page.tsx selects it. */
+interface LotDetailLot extends LotRow {
+  /** USDZ for AR Quick Look; added by a later migration than the generated types. */
+  ar_model_url?: string | null
+}
+
+/** The auction as app/lots/[id]/page.tsx selects it: the row plus the joined auctioneer. */
+interface LotDetailAuction extends AuctionRow {
+  auctioneers?: Partial<Pick<AuctioneerRow, 'company_name' | 'is_approved'>> | null
+}
 
 interface LotDetailProps {
-  lot: any
-  auction: any
+  lot: LotDetailLot
+  auction: LotDetailAuction
   /** Verified, unaltered buyer-facing photos. */
   originalImages?: LotImageRecord[]
   /** AI presentation mockups — never the item's evidence. */
@@ -40,19 +56,25 @@ export function LotDetail({
   // `lots.images`. Those uploads were never AI-touched, so they are originals.
   let legacyImages: string[] = []
   try {
-    if (typeof lot.images === 'string') {
-      legacyImages = JSON.parse(lot.images)
-    } else if (Array.isArray(lot.images)) {
-      legacyImages = lot.images
+    const raw: unknown = typeof lot.images === 'string' ? JSON.parse(lot.images) : lot.images
+    if (Array.isArray(raw)) {
+      legacyImages = raw.filter((url): url is string => typeof url === 'string')
     }
   } catch {
     legacyImages = []
   }
 
-  // What a bidder is looking at right now: the high bid if there is one,
-  // otherwise the opening bid. The premium percent is the auction's own.
+  // LOAD-TIME SNAPSHOT. `lot` is the row as it stood when the page rendered on
+  // the server. The BiddingPanel in the sidebar subscribes to new bids and
+  // keeps its own current-high-bid figure live, so once a lot has bids this
+  // value can fall behind it. To keep the page from ever showing two
+  // different current bids, the large figure in the header below is rendered
+  // only while there are no bids (an opening bid cannot change under the
+  // reader). Task 4b renders PremiumDisclosure inside BiddingPanel with the
+  // live high bid; until then it is shown here from this snapshot.
   const hasBids = Number(lot.bid_count) > 0 && Number(lot.current_high_bid) > 0
   const hammerCents = hasBids ? Number(lot.current_high_bid) : Number(lot.starting_bid) || 0
+  // null when the auction record did not arrive whole; never guessed.
   const premiumPct = premiumPercentForAuction(auction)
 
   return (
@@ -92,21 +114,30 @@ export function LotDetail({
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
                 {lot.title}
               </h1>
-              <div className="mt-4 flex items-center">
-                <Gavel className="h-5 w-5 text-gray-400 mr-3" aria-hidden="true" />
-                <div>
-                  <div className="text-sm text-gray-600">{hasBids ? 'Current Bid' : 'Opening Bid'}</div>
-                  <div className="text-2xl font-bold text-gray-900 tabular-nums">
-                    {formatUsd(hammerCents)}
+              {/* Opening bid only: once bids exist the live figure lives in the bidding panel. */}
+              {!hasBids && (
+                <div className="mt-4 flex items-center">
+                  <Gavel className="h-5 w-5 text-gray-400 mr-3" aria-hidden="true" />
+                  <div>
+                    <div className="text-sm text-gray-600">Opening Bid</div>
+                    <div className="text-2xl font-bold text-gray-900 tabular-nums">
+                      {formatUsd(hammerCents)}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <PremiumDisclosure
-                className="mt-3"
-                hammerCents={hammerCents}
-                premiumPct={premiumPct}
-                bidLabel={hasBids ? 'current bid' : 'opening bid'}
-              />
+              )}
+              {premiumPct !== null ? (
+                <PremiumDisclosure
+                  className="mt-3"
+                  hammerCents={hammerCents}
+                  premiumPct={premiumPct}
+                  bidLabel={hasBids ? 'current bid' : 'opening bid'}
+                />
+              ) : (
+                <p className="mt-3 text-sm text-gray-600">
+                  Buyer&apos;s premium is set by the auctioneer; see the auction terms.
+                </p>
+              )}
             </div>
 
             <div className="flex items-center gap-2 self-start flex-wrap">

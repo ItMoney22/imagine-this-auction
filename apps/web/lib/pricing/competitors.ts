@@ -1,7 +1,7 @@
 /**
- * Competitor pricing for the homepage comparison table, the savings example,
- * and the pricing page. Single source of truth so every surface shows the
- * same numbers and none of them can drift.
+ * Platform and competitor pricing for the homepage comparison table, the
+ * savings example, and the pricing page. Single source of truth so every
+ * surface shows the same numbers and none of them can drift.
  *
  * Figures are HiBid's published bidder-platform fees and AuctionFlex 360's
  * published software tiers as of September 2026. HiBid has no flat
@@ -11,6 +11,14 @@
  */
 
 import { formatUsd } from './premium'
+
+/** Imagine This Auction's own platform commission, percent of hammer. */
+export const ITA_PRICING = {
+  /** Founding auctioneers' rate, locked for as long as they sell here. */
+  foundingCommissionPct: 1.2,
+  /** The rate for auctioneers who join after the founding window. */
+  standardCommissionPct: 2,
+} as const
 
 /** HiBid / AuctionFlex 360 published figures. Money in integer cents. */
 export const HIBID_PRICING = {
@@ -28,16 +36,16 @@ export const HIBID_PRICING = {
 export interface CompetitorRow {
   /** What is being compared. */
   feature: string
-  /** ImagineThis Auction's terms. */
+  /** Imagine This Auction's terms. */
   ita: string
   /** HiBid / AuctionFlex 360's published terms. */
   hibid: string
 }
 
-export const COMPETITOR_ROWS: CompetitorRow[] = [
+export const COMPETITOR_ROWS: ReadonlyArray<CompetitorRow> = [
   {
     feature: 'Platform commission',
-    ita: '1.2% of hammer, founding rate locked for life',
+    ita: `${ITA_PRICING.foundingCommissionPct}% of hammer, founding rate locked for life`,
     hibid: `${HIBID_PRICING.commissionPct}% of hammer`,
   },
   {
