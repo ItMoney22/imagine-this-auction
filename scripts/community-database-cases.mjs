@@ -105,5 +105,38 @@ export async function testCommunityDatabase(db) {
     assert.equal(await count(),2)
     assert.equal((await db.query("select count(*)::integer as n from community_auction_updates where kind='live'")).rows[0].n,1)
   })
+  const auction='40000000-0000-4000-8000-000000000001', lot='70000000-0000-4000-8000-000000000001'
+  await db.query("insert into lots(id,auction_id,lot_number,title) values($1,$2,1,'QA coin')",[lot,auction])
+  const discuss=async(actor,operation,payload)=>(await db.query('select community_discuss($1,$2,$3::jsonb) as result',[actor,operation,JSON.stringify(payload)])).rows[0].result
+  let question
+  await check('lot question → house answer with answered badge data; outsiders cannot answer or pin',async()=>{
+    question=(await discuss(b,'ask',{lot_id:lot,body:'Can you show the reverse?',photo_request:true,moderation_status:'approved'})).id
+    await assert.rejects(discuss(b,'answer',{id:question,body:'Forged answer',moderation_status:'approved'}),/House access/)
+    await discuss(a,'answer',{id:question,body:'The reverse has light wear.',moderation_status:'approved'})
+    const row=(await asUser(b,'select answer,answered_at,photo_request from community_questions where id=$1',[question])).rows[0]
+    assert.equal(row.answer,'The reverse has light wear.');assert.ok(row.answered_at);assert.equal(row.photo_request,true)
+    await assert.rejects(discuss(b,'pin',{id:question,active:true}),/House access/)
+    await discuss(a,'pin',{id:question,active:true})
+    assert.equal((await asUser(b,'select pinned from community_questions where id=$1',[question])).rows[0].pinned,true)
+  })
+  await check('chat restricts slow mode, paused rooms, impersonation and the 24-hour cutoff',async()=>{
+    await discuss(b,'chat',{auction_id:auction,body:'Hello collectors',moderation_status:'approved'})
+    await assert.rejects(discuss(b,'chat',{auction_id:auction,body:'Too soon',moderation_status:'approved'}),/Slow mode/)
+    await assert.rejects(asUser(b,"select community_discuss($1,'chat',$2::jsonb)",[a,JSON.stringify({auction_id:auction,body:'Fake house'})]),/permission denied/)
+    await discuss(a,'room-settings',{auction_id:auction,slow_seconds:20,locked:true})
+    await assert.rejects(discuss(b,'chat',{auction_id:auction,body:'Paused',moderation_status:'approved'}),/paused/)
+    await db.query("update auctions set starts_at=now()-interval '3 days',ends_at=now()-interval '2 days',status='ended' where id=$1",[auction])
+    await assert.rejects(discuss(b,'chat',{auction_id:auction,body:'Closed',moderation_status:'approved'}),/24 hours/)
+  })
+  await check('discussion moderation hides pending content and blocks non-admin approval',async()=>{
+    const pending=(await discuss(b,'ask',{lot_id:lot,body:'Review this question',moderation_status:'pending'})).id
+    await assert.rejects(db.query("select community_review_discussion($1,'question',$2,true,null,'Checked facts')",[b,pending]),/Admin access/)
+    await db.query("select community_review_discussion($1,'question',$2,true,null,'Checked facts')",[admin,pending])
+    assert.equal((await asUser(a,'select id from community_questions where id=$1',[pending])).rows.length,1)
+    await cmd(b,'block',{target_id:a,active:true})
+    assert.equal((await asUser(b,'select id from community_questions where id=$1',[question])).rows.length,0)
+    assert.equal((await asUser(b,'select id from community_room_messages where auction_id=$1',[auction])).rows.length,0)
+    await cmd(b,'block',{target_id:a,active:false})
+  })
   return cases
 }

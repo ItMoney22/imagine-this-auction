@@ -30,5 +30,15 @@ const qaPath=path.join(__dirname,'../apps/web/.env.qa')
  if(own.error||own.data?.role!=='bidder') throw new Error('Own-profile RLS read failed')
  const escalation=await client.from('users').update({role:'admin'}).eq('id',id)
  if(!escalation.error) throw new Error('Self-escalation was unexpectedly allowed')
+ if(process.argv.includes('--fixtures')) {
+   const house=crypto.randomUUID(),auction=crypto.randomUUID(),lot=crypto.randomUUID()
+   for(const result of [
+     await admin.from('users').update({role:'auctioneer'}).eq('id',id),
+     await admin.from('auctioneers').insert({id:house,user_id:id,company_name:'QA Sample House — temporary test',address_line1:'QA fixture',city:'Providence',state:'RI',zip_code:'02901',is_approved:true}),
+     await admin.from('auctions').insert({id:auction,auctioneer_id:house,title:'QA Sample Auction — temporary test',starts_at:new Date(Date.now()-3600000).toISOString(),ends_at:new Date(Date.now()+86400000).toISOString(),status:'scheduled'}),
+     await admin.from('lots').insert({id:lot,auction_id:auction,lot_number:1,title:'QA Sample Coin — temporary test',description:'Temporary interface fixture, not a real sale.',starting_bid:100}),
+   ]) if(result.error) throw new Error('Could not create temporary discussion fixtures: '+result.error.message)
+   fs.appendFileSync(qaPath,`ITA_QA_AUCTION_ID=${auction}\nITA_QA_LOT_ID=${lot}\n`)
+ }
  console.log('PASS live authentication, own-profile access and denied self-escalation. Temporary credentials saved only to ignored .env.qa.')
 })().catch(e=>{console.error(e.message);process.exitCode=1})

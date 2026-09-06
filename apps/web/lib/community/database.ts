@@ -5,6 +5,11 @@ type Table<Row, Required extends keyof Row = never> = { Row: Row; Insert: Pick<R
 type Id = { id: string }
 type Created = { created_at: string }
 export type CommunityTables = {
+  community_questions: Table<Id & Created & { lot_id: string; asker_id: string; body: string; photo_request: boolean; answer: string | null; answered_by: string | null; answered_at: string | null; pinned: boolean; media_id: string | null; moderation_status: string }, 'lot_id' | 'asker_id' | 'body'>
+  community_room_messages: Table<Id & Created & { auction_id: string; author_id: string; body: string; moderation_status: string }, 'auction_id' | 'author_id' | 'body'>
+  community_room_settings: Table<{ auction_id: string; slow_seconds: number; locked: boolean }, 'auction_id'>
+  community_discussion_reports: Table<Id & Created & { reporter_id: string; question_id: string | null; message_id: string | null; reason: string; reviewed: boolean }, 'reporter_id' | 'reason'>
+  community_auction_updates: Table<Id & Created & { auction_id: string; kind: string }, 'auction_id' | 'kind'>
   community_profiles: Table<CommunityProfile & { handle_changed_at: string }, 'user_id' | 'handle' | 'display_name'>
   community_houses: Table<Id & Created & { owner_id: string; slug: string; company_name: string; about: string; city: string; region: string; categories: string[]; service_radius_miles: number; banner_path: string | null; logo_url: string | null; is_approved: boolean; auto_posts: boolean }, 'id' | 'owner_id' | 'slug' | 'company_name'>
   house_members: Table<{ auctioneer_id: string; user_id: string; role: 'owner' | 'staff' }, 'auctioneer_id' | 'user_id' | 'role'>

@@ -1,3 +1,4 @@
+import { AuctionDiscussion } from '@/components/community/discussions'
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { LotDetail } from '@/components/marketplace/lot-detail'
@@ -103,6 +104,7 @@ export default async function LotDetailPage({ params }: Props) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content - Lot Details */}
           <div className="lg:col-span-2">
+            <AuctionDiscussion lotId={lot.id} auctionId={auction.id} />
             <LotDetail
               lot={lot}
               auction={auction}

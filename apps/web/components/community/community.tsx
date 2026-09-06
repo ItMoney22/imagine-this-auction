@@ -1,6 +1,7 @@
 'use client'
 
 import './community.css'
+import { DiscussionModeration, QuestionInbox } from './discussions'
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -56,8 +57,8 @@ export function Community({ view = 'feed', handle, slug }: { view?: 'feed' | 'ex
         {(view === 'profile' || view === 'house') && <ProfilePage handle={handle} slug={slug} me={me} refresh={refresh} revision={revision} />}
         {view === 'settings' && <ProfileSettings me={me} refresh={refresh} />}
         {view === 'notifications' && <Notifications me={me} revision={revision} />}
-        {view === 'org' && <HouseStudio me={me} refresh={refresh} revision={revision} />}
-        {view === 'admin' && <Moderation me={me} />}
+        {view === 'org' && <><HouseStudio me={me} refresh={refresh} revision={revision} />{!!me.houses?.length && <QuestionInbox />}</>}
+        {view === 'admin' && <><Moderation me={me} />{me.user?.role === 'admin' && <DiscussionModeration />}</>}
       </div>
     </div>}
   </div>

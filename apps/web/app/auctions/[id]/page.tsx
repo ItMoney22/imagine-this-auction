@@ -1,3 +1,4 @@
+import { AuctionDiscussion } from '@/components/community/discussions'
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { LotGrid } from '@/components/marketplace/lot-grid'
@@ -39,7 +40,11 @@ export default async function AuctionDetailPage({ params: routeParamsPromise, se
   if (!auction) return notFound()
 
   const user = authData.user
-  let canView = auction.status === 'live' && auction.auctioneers?.is_approved
+  // Preview questions are useful before a sale; chat remains available for 24h afterward.
+  let canView = auction.auctioneers?.is_approved && (
+    auction.status === 'live' || auction.status === 'scheduled' ||
+    (auction.status === 'ended' && Date.parse(auction.ends_at) > Date.now() - 86_400_000)
+  )
 
   if (user) {
     const [{ data: auctioneer }, { data: userProfile }] = await Promise.all([
@@ -132,6 +137,7 @@ export default async function AuctionDetailPage({ params: routeParamsPromise, se
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Auction Header */}
         <AuctionHeader auction={auction} />
+        <AuctionDiscussion auctionId={auction.id} />
 
         {/* Auction Info & Lots Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 mt-8">

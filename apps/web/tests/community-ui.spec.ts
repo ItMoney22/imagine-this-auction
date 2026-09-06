@@ -63,3 +63,50 @@ test('mobile composer, feed, reactions, follow and profile settings',async({page
   await page.screenshot({path:'../../docs/qa/community/profile-mobile.png',fullPage:true})
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true)
 })
+
+test('lot question, condition request, house answer and auction chat controls',async({page})=>{
+  test.skip(!process.env.ITA_QA_LOT_ID,'Requires temporary discussion fixtures')
+  const lot=process.env.ITA_QA_LOT_ID!,auction=process.env.ITA_QA_AUCTION_ID!
+  let manager=false,paused=false
+  const questions:Record<string,unknown>[]=[]
+  const messages:Record<string,unknown>[]=[]
+  await page.route('**/api/community/status',route=>route.fulfill({json:{enabled:true}}))
+  await page.route('**/api/community/discussions**',async route=>{
+    const request=route.request(),url=new URL(request.url())
+    if(request.method()==='POST'){
+      const body=request.postDataJSON()
+      if(body.operation==='ask')questions.push({id:'80000000-0000-4000-8000-000000000001',body:body.body,photo_request:body.photo_request,asker_id:bidder,moderation_status:'approved',created_at:new Date().toISOString()})
+      if(body.operation==='answer')Object.assign(questions[0],{answer:body.body,answered_at:new Date().toISOString()})
+      if(body.operation==='chat')messages.push({id:'80000000-0000-4000-8000-000000000002',body:body.body,author_id:bidder,moderation_status:'approved',created_at:new Date().toISOString()})
+      if(body.operation==='room-settings')paused=body.locked
+      return route.fulfill({json:{saved:true,moderation_status:'approved'}})
+    }
+    return route.fulfill({json:{rows:url.searchParams.get('mode')==='questions'?questions:messages,auction:{id:auction,title:'QA Sample Auction',status:'live',ends_at:new Date(Date.now()+3600000).toISOString()},settings:{slow_seconds:5,locked:paused},canManage:manager,userId:bidder}})
+  })
+  await page.goto(`/lots/${lot}`)
+  const discussion=page.getByRole('region',{name:'Ask the auctioneer'})
+  await discussion.getByRole('textbox',{name:'Your question'}).fill('Can you show the reverse of this coin?')
+  await discussion.getByLabel('Request a condition photo').check()
+  await discussion.getByRole('button',{name:'Ask question',exact:true}).click()
+  await expect(discussion.getByText('Photo requested',{exact:true})).toBeVisible()
+  manager=true
+  await discussion.getByRole('button',{name:'Refresh',exact:true}).click()
+  await discussion.getByText('Answer this question',{exact:true}).click()
+  await discussion.getByRole('textbox',{name:'House answer'}).fill('The reverse has light wear around the rim.')
+  await discussion.getByRole('button',{name:'Publish answer'}).click()
+  await expect(discussion.getByText('Answered by house',{exact:true})).toBeVisible()
+  await page.evaluate(()=>window.scrollTo(0,0))
+  await page.screenshot({fullPage:true,path:'../../docs/qa/community/lot-questions-mobile.png'})
+  await page.goto(`/auctions/${auction}`)
+  const room=page.getByRole('region',{name:'Auction chat'})
+  await room.getByRole('textbox',{name:'Your message'}).fill('Hello, fellow collectors!')
+  await room.getByRole('button',{name:'Send message',exact:true}).click()
+  await expect(room.getByText('Hello, fellow collectors!',{exact:true})).toBeVisible()
+  await room.getByLabel('Pause chat').check()
+  await room.getByRole('button',{name:'Save chat settings'}).click()
+  manager=false
+  await room.getByRole('button',{name:'Refresh',exact:true}).click()
+  await expect(room.getByText('The auction house has paused chat.')).toBeVisible()
+  await page.evaluate(()=>window.scrollTo(0,0))
+  await page.screenshot({fullPage:true,path:'../../docs/qa/community/auction-chat-mobile.png'})
+})
