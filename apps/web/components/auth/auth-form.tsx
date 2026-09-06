@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
+import { LEGAL_LAST_UPDATED } from '@/lib/legal/company'
 
 const magicLinkSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -37,9 +38,13 @@ export function AuthForm({ mode, redirectTo }: AuthFormProps) {
   const termsBlocked = requiresTerms && !acceptedTerms
   const TERMS_ERROR = 'Please agree to the Terms of Service and Privacy Policy to create an account.'
 
-  // Stored in auth.users.raw_user_meta_data; migration 019b copies it onto
-  // public.users.terms_accepted_at when the profile row is created.
-  const signupMetadata = () => ({ terms_accepted_at: new Date().toISOString() })
+  // Stored in auth.users.raw_user_meta_data; migration 019b copies
+  // terms_accepted_at onto public.users when the profile row is created.
+  // terms_version records which revision of the legal pages was accepted.
+  const signupMetadata = () => ({
+    terms_accepted_at: new Date().toISOString(),
+    terms_version: LEGAL_LAST_UPDATED,
+  })
 
   const supabase = createClient()
 
@@ -66,12 +71,19 @@ export function AuthForm({ mode, redirectTo }: AuthFormProps) {
         email: data.email,
         options: {
           emailRedirectTo: redirectTo || `${window.location.origin}/auth/callback`,
+          // Login must never create an account: a new account has to come
+          // through the sign-up form, where the Terms checkbox is required.
+          shouldCreateUser: requiresTerms,
           ...(requiresTerms ? { data: signupMetadata() } : {}),
         },
       })
 
       if (authError) {
-        setError(authError.message)
+        setError(
+          /signups not allowed/i.test(authError.message)
+            ? 'No account exists for this email. Create one on the sign-up page.'
+            : authError.message,
+        )
       } else {
         setMessage('Check your email for the magic link!')
       }

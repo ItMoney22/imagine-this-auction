@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { nextBidCents } from '@/lib/payments/bid-gate'
+import { formatUsd } from '@/lib/pricing/premium'
 
 export async function POST(
   req: NextRequest,
@@ -19,16 +21,23 @@ export async function POST(
 
   const { data: lot, error: lotErr } = await supabase
     .from('lots')
-    .select('id, current_high_bid, starting_bid, increment')
+    .select('id, current_high_bid, starting_bid, increment, bid_count')
     .eq('id', lotId)
     .single()
 
   if (lotErr || !lot) return NextResponse.json({ error: 'Lot not found' }, { status: 404 })
 
-  const minRequired = (lot.current_high_bid || lot.starting_bid) + (lot.increment || 1)
+  // Opening-bid rule: the first bid on a lot is the starting bid itself; after
+  // that, current high + increment. Same function the bidding panel uses.
+  const minRequired = nextBidCents({
+    hasBids: (lot.bid_count ?? 0) > 0,
+    startingBidCents: lot.starting_bid,
+    currentHighCents: lot.current_high_bid,
+    incrementCents: lot.increment || 1,
+  })
   if (amount < minRequired) {
     return NextResponse.json(
-      { error: `Max must be at least ${minRequired}` },
+      { error: `Max must be at least ${formatUsd(minRequired)}` },
       { status: 400 }
     )
   }

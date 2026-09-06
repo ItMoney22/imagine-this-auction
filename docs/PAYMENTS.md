@@ -132,20 +132,32 @@ Every verified event is inserted into `payment_events` (`provider='nmi'`,
 `ON CONFLICT DO NOTHING`, so a redelivery never resets an existing row.
 
 Processing is then guarded by an atomic claim on the row, using the
-`processing_started_at` column added by migration `019c`:
+`processing_started_at` column added by migration `019c`. The app clock stamps
+both the claim and the stale cutoff (not DB `now()`), because the same
+timestamp doubles as the ownership token in steps 3 and 4:
 
-1. `UPDATE payment_events SET processing_started_at = now()
+1. `UPDATE payment_events SET processing_started_at = $claimedAt
    WHERE provider_event_id = $1 AND processed = false
-   AND (processing_started_at IS NULL OR processing_started_at < now() - 2 min)
+   AND (processing_started_at IS NULL OR processing_started_at < $claimedAt - 2 min)
    RETURNING id`
-2. No row returned: the event is already processed, or another delivery holds
-   a live claim. Respond 200 `{ ok, duplicate }` and do nothing else.
+2. No row returned: read `processed`. Already processed → 200 `{ ok, duplicate }`
+   so NMI stops retrying. Not processed → another delivery holds a live claim →
+   409 `{ error: 'Event in progress, retry later' }` so NMI retries after that
+   delivery finishes or its claim goes stale. (Answering 200 here would consume
+   the retry and strand the event if the in-flight delivery then failed.)
 3. Row claimed: dispatch through the registry.
    - Handler ran: `processed = true`, `processed_at` set, claim cleared. 200.
    - No handler registered for the type: claim cleared, `processed` stays
      `false`, 200 `{ handled: false }`. The row waits for a later pass (Task 4c
      can re-dispatch stored events once its handlers exist).
    - Handler threw: claim cleared, 500 so NMI retries.
+   - Row could not be updated after the handler ran: claim released best-effort,
+     500 so NMI retries (the handler must tolerate the re-run).
+4. Every write after the claim (`markProcessed`, `releaseClaim`) also requires
+   `processing_started_at = $claimedAt`, so a request that outlived the
+   two-minute window cannot clear or complete a claim a later retry now owns.
+   The route sets `maxDuration = 60` so a request cannot structurally outlive
+   its own claim on Vercel.
 
 A worker that dies mid-handler leaves a claim that expires after two minutes,
 after which a retry takes the row over. That is why **handlers must still be
@@ -153,6 +165,11 @@ idempotent**: the same event can reach a handler twice (a takeover after a
 crash, or a retry after the row could not be marked processed). Key every side
 effect on the event's `transaction_id` / `order_id` and make status transitions
 no-ops when already applied.
+
+`provider_event_id` is globally unique across providers (the unique index does
+not include `provider`). Task 4c's own `payment_events` rows for charges it
+initiates must use a namespaced id such as `nmi-sale:<transactionid>` so they
+can never collide with a gateway webhook `event_id`.
 
 Until 019c is applied the claim update fails and every event returns 500 (NMI
 retries), so run the migration before pointing NMI at the endpoint.

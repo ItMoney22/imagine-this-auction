@@ -14,11 +14,12 @@ interface Props {
   lot: any
   auction: any
   user: any
-  walletBalance: number
+  /** No longer used: bids are gated on a card on file, not a balance. Task 4d removes the prop chain. */
+  walletBalance?: number
   initialBids: any[]
 }
 
-export function LotBiddingSidebar({ lot, auction, user, walletBalance, initialBids }: Props) {
+export function LotBiddingSidebar({ lot, auction, user, initialBids }: Props) {
   const [supabase] = useState(() => createClient())
   const { toast } = useToast()
   const [bids, setBids] = useState(initialBids)
@@ -112,7 +113,6 @@ export function LotBiddingSidebar({ lot, auction, user, walletBalance, initialBi
         lot={lot}
         auction={auction}
         user={user}
-        walletBalance={walletBalance}
         bids={bids}
         auctionEndTime={auctionEndTime}
         onBidPlaced={handleBidPlaced}

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { canAccessOrg } from '../../lib/auth/org-gate'
+import { canAccessOrg, pendingVariantFor } from '../../lib/auth/org-gate'
 
 test.describe('org access gate', () => {
   test('approved auctioneer may enter /org', () => {
@@ -37,5 +37,19 @@ test.describe('org access gate', () => {
   test('role comparison is exact (no case folding, no whitespace tolerance)', () => {
     expect(canAccessOrg({ role: 'Auctioneer', is_approved: true })).toBe(false)
     expect(canAccessOrg({ role: ' auctioneer', is_approved: true })).toBe(false)
+  })
+})
+
+test.describe('pending notice variant', () => {
+  test('a rejected license shows the rejected notice', () => {
+    expect(pendingVariantFor('rejected')).toBe('rejected')
+  })
+
+  test('pending, approved, missing, or unknown statuses show the pending notice', () => {
+    expect(pendingVariantFor('pending')).toBe('pending')
+    expect(pendingVariantFor('approved')).toBe('pending')
+    expect(pendingVariantFor(null)).toBe('pending')
+    expect(pendingVariantFor(undefined)).toBe('pending')
+    expect(pendingVariantFor('REJECTED')).toBe('pending')
   })
 })

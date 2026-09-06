@@ -1,9 +1,8 @@
 import { redirect } from 'next/navigation'
 
-import { canAccessOrg } from '@/lib/auth/org-gate'
+import { canAccessOrg, pendingVariantFor } from '@/lib/auth/org-gate'
 import { createClient } from '@/lib/supabase/server'
-
-import { PendingNotice } from './org-pending-gate'
+import { PendingNotice } from '@/components/org/org-pending-notice'
 
 export const metadata = {
   title: 'Application under review',
@@ -38,5 +37,14 @@ export default async function OrgPendingPage() {
     redirect('/org')
   }
 
-  return <PendingNotice />
+  const { data: licenseDocument } = await supabase
+    .from('user_documents')
+    .select('verification_status')
+    .eq('user_id', user.id)
+    .eq('document_type', 'auctioneer_license')
+    .order('uploaded_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  return <PendingNotice variant={pendingVariantFor(licenseDocument?.verification_status)} />
 }

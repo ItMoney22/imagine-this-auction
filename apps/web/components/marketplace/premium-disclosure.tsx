@@ -12,8 +12,8 @@ interface PremiumDisclosureProps {
   hammerCents: number
   /** The auction's buyer_premium_percent. Comes from the auction record. */
   premiumPct: number
-  /** Whether hammerCents is the current high bid or the opening bid. */
-  bidLabel?: 'current bid' | 'opening bid'
+  /** Whether hammerCents is the current high bid, the opening bid, or the bid about to be placed. */
+  bidLabel?: 'current bid' | 'opening bid' | 'your bid'
   className?: string
 }
 
@@ -23,6 +23,8 @@ interface PremiumDisclosureProps {
  * learns about the premium from the invoice.
  *
  * No hooks, so it renders on the server and inside client components alike.
+ * The visible sentence is the accessible name; the icon and the separator
+ * are decorative and hidden from assistive technology.
  */
 export function PremiumDisclosure({
   hammerCents,
@@ -37,7 +39,6 @@ export function PremiumDisclosure({
   return (
     <div
       role="note"
-      aria-label={`Buyer's premium ${pct}. If you win at ${formatUsd(hammerCents)} you pay ${formatUsd(totalCents)}.`}
       className={cn(
         'rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950',
         className

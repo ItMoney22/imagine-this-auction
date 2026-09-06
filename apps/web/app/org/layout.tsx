@@ -1,11 +1,10 @@
 import { ReactNode } from 'react'
 import { redirect } from 'next/navigation'
 
-import { canAccessOrg } from '@/lib/auth/org-gate'
+import { canAccessOrg, pendingVariantFor } from '@/lib/auth/org-gate'
 import { createClient } from '@/lib/supabase/server'
+import { OrgPendingGate } from '@/components/org/org-pending-gate'
 import { OrgSidebar } from '@/components/org/org-sidebar'
-
-import { OrgPendingGate } from './pending/org-pending-gate'
 
 interface OrgLayoutProps {
   children: ReactNode
@@ -33,14 +32,25 @@ export default async function OrgLayout({ children }: OrgLayoutProps) {
     redirect('/dashboard')
   }
 
-  // Auctioneers whose application is still under review get the pending
-  // notice instead of the vendor center. The gate is a client component so it
-  // can see the pathname and send /org/* to /org/pending without redirect-
-  // looping through this same layout (server layouts cannot read the request
-  // path). `children` is deliberately not rendered on this branch, so nothing
-  // from the vendor center reaches an unapproved account.
+  // Auctioneers whose application is still under review (or was rejected) get
+  // the pending notice instead of the vendor center. The gate is a client
+  // component so it can see the pathname and send /org/* to /org/pending
+  // without redirect-looping through this same layout (server layouts cannot
+  // read the request path). `children` is deliberately not rendered on this
+  // branch, so nothing from the vendor center reaches an unapproved account.
   if (!canAccessOrg(profile)) {
-    return <OrgPendingGate />
+    // Same lookup app/become-auctioneer/page.tsx does; RLS limits it to the
+    // caller's own documents. A rejected license changes the copy.
+    const { data: licenseDocument } = await supabase
+      .from('user_documents')
+      .select('verification_status')
+      .eq('user_id', user.id)
+      .eq('document_type', 'auctioneer_license')
+      .order('uploaded_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    return <OrgPendingGate variant={pendingVariantFor(licenseDocument?.verification_status)} />
   }
 
   const { data: auctioneer } = await supabase

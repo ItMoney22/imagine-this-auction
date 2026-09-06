@@ -21,30 +21,33 @@ export interface Database {
           phone: string | null
           is_approved: boolean
           notification_prefs: Json
+          terms_accepted_at: string | null
           created_at: string
           updated_at: string
         }
         Insert: {
           id: string
           email: string
-          role?: 'bidder' | 'auctioneer' | 'admin'
+          role?: 'bidder' | 'auctioneer' | 'admin' | 'driver'
           first_name?: string | null
           last_name?: string | null
           phone?: string | null
           is_approved?: boolean
           notification_prefs?: Json
+          terms_accepted_at?: string | null
           created_at?: string
           updated_at?: string
         }
         Update: {
           id?: string
           email?: string
-          role?: 'bidder' | 'auctioneer' | 'admin'
+          role?: 'bidder' | 'auctioneer' | 'admin' | 'driver'
           first_name?: string | null
           last_name?: string | null
           phone?: string | null
           is_approved?: boolean
           notification_prefs?: Json
+          terms_accepted_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -386,6 +389,7 @@ export interface Database {
           processed_at: string | null
           provider: string
           provider_event_id: string
+          processing_started_at: string | null
         }
         Insert: {
           id: string
@@ -396,6 +400,7 @@ export interface Database {
           processed_at?: string | null
           provider?: string
           provider_event_id: string
+          processing_started_at?: string | null
         }
         Update: {
           id?: string
@@ -406,6 +411,51 @@ export interface Database {
           processed_at?: string | null
           provider?: string
           provider_event_id?: string
+          processing_started_at?: string | null
+        }
+      }
+      bidder_payment_methods: {
+        Row: {
+          id: string
+          user_id: string
+          provider: string
+          customer_vault_id: string
+          card_brand: string | null
+          last4: string | null
+          exp_month: number | null
+          exp_year: number | null
+          verified_at: string | null
+          unvoided_auth_transaction_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          provider?: string
+          customer_vault_id: string
+          card_brand?: string | null
+          last4?: string | null
+          exp_month?: number | null
+          exp_year?: number | null
+          verified_at?: string | null
+          unvoided_auth_transaction_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          provider?: string
+          customer_vault_id?: string
+          card_brand?: string | null
+          last4?: string | null
+          exp_month?: number | null
+          exp_year?: number | null
+          verified_at?: string | null
+          unvoided_auth_transaction_id?: string | null
+          created_at?: string
+          updated_at?: string
         }
       }
       payouts_due: {
@@ -1201,7 +1251,17 @@ export interface Database {
       }
     }
     Views: {
-      [_ in never]: never
+      /** Display columns of bidder_payment_methods; security_invoker, owner-only. Never the vault id. */
+      bidder_payment_methods_public: {
+        Row: {
+          user_id: string
+          card_brand: string | null
+          last4: string | null
+          exp_month: number | null
+          exp_year: number | null
+          verified_at: string | null
+        }
+      }
     }
     Functions: {
       ai_available_credits: {
@@ -1389,6 +1449,8 @@ export type Bid = Database['public']['Tables']['bids']['Row']
 export type WalletLedger = Database['public']['Tables']['wallet_ledger']['Row']
 export type Invoice = Database['public']['Tables']['invoices']['Row']
 export type PaymentEvent = Database['public']['Tables']['payment_events']['Row']
+export type BidderPaymentMethod = Database['public']['Tables']['bidder_payment_methods']['Row']
+export type BidderPaymentMethodPublic = Database['public']['Views']['bidder_payment_methods_public']['Row']
 export type PayoutDue = Database['public']['Tables']['payouts_due']['Row']
 export type AuditLog = Database['public']['Tables']['audit_log']['Row']
 export type Notification = Database['public']['Tables']['notifications']['Row']

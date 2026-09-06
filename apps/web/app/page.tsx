@@ -12,7 +12,6 @@ import {
   Zap,
   DollarSign,
   CheckCircle2,
-  XCircle,
   Star,
   CreditCard,
   Layers,
@@ -29,8 +28,14 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/types/database'
-import { COMPETITOR_CAPTION, COMPETITOR_ROWS, HIBID_PRICING } from '@/lib/pricing/competitors'
-import { formatUsd } from '@/lib/pricing/premium'
+import {
+  COMPETITOR_CAPTION,
+  COMPETITOR_ROWS,
+  HIBID_PRICING,
+  ITA_PRICING,
+} from '@/lib/pricing/competitors'
+import { formatUsd, percentOfCents } from '@/lib/pricing/premium'
+import { CompetitorTable } from '@/components/marketing/competitor-table'
 
 type Auction = Database['public']['Tables']['auctions']['Row']
 type Lot = Database['public']['Tables']['lots']['Row']
@@ -50,11 +55,6 @@ function calculateTimeRemaining(endsAt: string): string {
   if (days > 0) return `${days}d ${hours}h`
   if (hours > 0) return `${hours}h ${minutes}m`
   return `${minutes}m`
-}
-
-/** Whole dollars to a two-decimal USD string. */
-function usd(dollars: number): string {
-  return formatUsd(Math.round(dollars * 100))
 }
 
 interface DisplayLot {
@@ -147,25 +147,31 @@ function LotCard({ lot }: { lot: DisplayLot }) {
 /**
  * Worked savings example. Every input is stated in the small print under the
  * calculator; the totals below are derived from these, never typed by hand.
+ * All money is integer cents end to end, rounded once per fee the way the
+ * premium is, and only formatted at the edge.
  */
 const SAVINGS_EXAMPLE = {
-  monthlyHammer: 50_000,
+  monthlyHammerCents: 5_000_000,
   auctionsPerMonth: 4,
   hibidCommissionPct: HIBID_PRICING.commissionPct,
-  hibidSoftwareMonthly: HIBID_PRICING.softwareMidCents / 100, // AuctionFlex 360 mid tier
-  hibidWebcastPerAuction: HIBID_PRICING.webcastSetupCents / 100,
-  hibidBidFeeCap: HIBID_PRICING.perBidCapCents / 100,
+  hibidSoftwareMonthlyCents: HIBID_PRICING.softwareMidCents, // AuctionFlex 360 mid tier
+  hibidWebcastPerAuctionCents: HIBID_PRICING.webcastSetupCents,
+  hibidBidFeeCapCents: HIBID_PRICING.perBidCapCents,
   hibidBidCapAuctions: 2, // auctions per month assumed to hit the cap
-  itaCommissionPct: 1.2,
-}
+  itaCommissionPct: ITA_PRICING.foundingCommissionPct,
+} as const
 
-const hibidCommission = (SAVINGS_EXAMPLE.monthlyHammer * SAVINGS_EXAMPLE.hibidCommissionPct) / 100
-const hibidWebcast = SAVINGS_EXAMPLE.auctionsPerMonth * SAVINGS_EXAMPLE.hibidWebcastPerAuction
-const hibidBidFees = SAVINGS_EXAMPLE.hibidBidCapAuctions * SAVINGS_EXAMPLE.hibidBidFeeCap
-const hibidTotal = hibidCommission + SAVINGS_EXAMPLE.hibidSoftwareMonthly + hibidWebcast + hibidBidFees
-const itaTotal = (SAVINGS_EXAMPLE.monthlyHammer * SAVINGS_EXAMPLE.itaCommissionPct) / 100
-const monthlySavings = hibidTotal - itaTotal
-const yearlySavings = monthlySavings * 12
+const hibidCommissionCents = percentOfCents(
+  SAVINGS_EXAMPLE.monthlyHammerCents,
+  SAVINGS_EXAMPLE.hibidCommissionPct
+)
+const hibidWebcastCents = SAVINGS_EXAMPLE.auctionsPerMonth * SAVINGS_EXAMPLE.hibidWebcastPerAuctionCents
+const hibidBidFeesCents = SAVINGS_EXAMPLE.hibidBidCapAuctions * SAVINGS_EXAMPLE.hibidBidFeeCapCents
+const hibidTotalCents =
+  hibidCommissionCents + SAVINGS_EXAMPLE.hibidSoftwareMonthlyCents + hibidWebcastCents + hibidBidFeesCents
+const itaTotalCents = percentOfCents(SAVINGS_EXAMPLE.monthlyHammerCents, SAVINGS_EXAMPLE.itaCommissionPct)
+const monthlySavingsCents = hibidTotalCents - itaTotalCents
+const yearlySavingsCents = monthlySavingsCents * 12
 
 export default async function Home() {
   const supabase = await createClient()
@@ -268,8 +274,9 @@ export default async function Home() {
             </h1>
 
             <p className="mt-8 text-xl lg:text-2xl text-white/80 max-w-2xl leading-relaxed animate-fade-in-up">
-              No monthly, listing, per-bid, or webcast fees. Founding auctioneers pay 1.2% of hammer,
-              billed once a month, and keep the buyer&apos;s premium.
+              No monthly, listing, per-bid, or webcast fees. Founding auctioneers pay{' '}
+              {ITA_PRICING.foundingCommissionPct}% of hammer, billed once a month, and keep the
+              buyer&apos;s premium.
             </p>
 
             {/* CTAs */}
@@ -291,10 +298,10 @@ export default async function Home() {
             {/* Fee facts */}
             <div className="flex flex-wrap items-center gap-8 mt-14 animate-fade-in">
               {[
-                { value: '1.2%', label: 'Founding Rate' },
-                { value: '$0.00', label: 'Monthly Fee' },
-                { value: '$0.00', label: 'Per-Bid Fee' },
-                { value: '$0.00', label: 'Webcast Fee' },
+                { value: `${ITA_PRICING.foundingCommissionPct}%`, label: 'Founding Rate' },
+                { value: formatUsd(0), label: 'Monthly Fee' },
+                { value: formatUsd(0), label: 'Per-Bid Fee' },
+                { value: formatUsd(0), label: 'Webcast Fee' },
               ].map((stat) => (
                 <div key={stat.label} className="text-center">
                   <p className="text-3xl font-display font-bold text-white tabular-nums">{stat.value}</p>
@@ -311,7 +318,7 @@ export default async function Home() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex flex-wrap items-center justify-center gap-x-12 gap-y-4 text-center">
             {[
-              { icon: Star, text: 'Founding auctioneers keep 1.2% for life' },
+              { icon: Star, text: `Founding auctioneers keep ${ITA_PRICING.foundingCommissionPct}% for life` },
               { icon: Receipt, text: 'No per-bid, listing, or webcast fees' },
               { icon: CreditCard, text: 'Bid with a card on file, pay only when you win' },
               { icon: Truck, text: 'Local delivery by vetted drivers' },
@@ -338,60 +345,28 @@ export default async function Home() {
               <span className="bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent"> Imagine This Auction</span>
             </h2>
             <p className="mt-6 text-lg text-slate-600">
-              An auctioneer selling {usd(SAVINGS_EXAMPLE.monthlyHammer)} a month pays about{' '}
-              <strong className="text-slate-900">{usd(hibidTotal)}</strong> in HiBid fees under the assumptions
-              below, and <strong className="text-slate-900">{usd(itaTotal)}</strong> here. That is{' '}
-              <strong className="text-slate-900">{usd(monthlySavings)}</strong> a month, or {usd(yearlySavings)} a year.
+              An auctioneer selling {formatUsd(SAVINGS_EXAMPLE.monthlyHammerCents)} a month pays about{' '}
+              <strong className="text-slate-900">{formatUsd(hibidTotalCents)}</strong> in HiBid fees under the
+              assumptions below, and <strong className="text-slate-900">{formatUsd(itaTotalCents)}</strong> here.
+              That is <strong className="text-slate-900">{formatUsd(monthlySavingsCents)}</strong> a month, or{' '}
+              {formatUsd(yearlySavingsCents)} a year.
             </p>
           </div>
 
           {/* Comparison Table */}
           <div className="max-w-4xl mx-auto">
-            <div className="overflow-hidden rounded-3xl border border-slate-200 shadow-[0_20px_60px_rgba(0,0,0,0.08)]">
-              {/* Header */}
-              <div className="grid grid-cols-3 bg-slate-900 text-white">
-                <div className="p-6 font-semibold text-sm uppercase tracking-wider text-white/80">Fee</div>
-                <div className="p-6 text-center">
-                  <div className="flex items-center justify-center gap-2">
-                    <Image src="/images/logo-mark.webp" alt="ImagineThis" width={28} height={28} className="rounded-lg" />
-                    <span className="font-bold text-lg">ImagineThis</span>
-                  </div>
-                </div>
-                <div className="p-6 text-center">
-                  <span className="font-bold text-lg text-white/80">HiBid</span>
-                </div>
-              </div>
-
-              {/* Rows */}
-              {COMPETITOR_ROWS.map((row, i) => (
-                <div key={row.feature} className={`grid grid-cols-3 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50/80'} ${i < COMPETITOR_ROWS.length - 1 ? 'border-b border-slate-100' : ''}`}>
-                  <div className="p-5 flex items-center text-sm font-medium text-slate-700">{row.feature}</div>
-                  <div className="p-5 flex items-center justify-center gap-2 text-center">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
-                    <span className="font-bold text-emerald-700 text-sm">{row.ita}</span>
-                  </div>
-                  <div className="p-5 flex items-center justify-center gap-2 text-center">
-                    <XCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
-                    <span className="text-slate-500 text-sm">{row.hibid}</span>
-                  </div>
-                </div>
-              ))}
-
-              <p className="px-6 py-3 bg-slate-50 border-t border-slate-100 text-xs text-slate-500 text-center">
-                {COMPETITOR_CAPTION}
-              </p>
-
+            <CompetitorTable rows={COMPETITOR_ROWS} caption={COMPETITOR_CAPTION}>
               {/* Bottom CTA */}
               <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-8 text-center">
                 <p className="text-white/80 text-sm mb-3">Ready to keep more of your hammer?</p>
                 <Button asChild variant="secondary" size="lg" className="bg-white text-purple-700 hover:bg-white/90 shadow-xl rounded-2xl h-12 px-8">
                   <Link href="/signup">
-                    Switch to ImagineThis
+                    Switch to Imagine This Auction
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Link>
                 </Button>
               </div>
-            </div>
+            </CompetitorTable>
           </div>
         </div>
       </section>
@@ -472,7 +447,7 @@ export default async function Home() {
               { number: '01', title: 'Apply', description: 'Tell us about your business and your auctioneer license. We review every application before anyone lists.', icon: FileCheck },
               { number: '02', title: 'Connect PaymentCloud', description: 'Link your own PaymentCloud merchant account. Winning bidders are charged through it, so the money is yours from the start.', icon: Landmark },
               { number: '03', title: 'List Your Lots', description: 'Photograph items and let AI Quick List draft the catalog, or upload a CSV. Set opening bids, increments, and reserves.', icon: Camera },
-              { number: '04', title: 'Sell and Get Paid', description: 'Bids close, cards are charged, funds settle to your bank. We send one 1.2% statement at the end of the month.', icon: Banknote },
+              { number: '04', title: 'Sell and Get Paid', description: `Bids close, cards are charged, funds settle to your bank. We send one ${ITA_PRICING.foundingCommissionPct}% statement at the end of the month.`, icon: Banknote },
             ].map((step, i) => (
               <div key={step.number} className="relative group">
                 {i < 3 && (
@@ -507,12 +482,12 @@ export default async function Home() {
                   A Worked Example
                 </Badge>
                 <h2 className="text-3xl sm:text-4xl font-display font-bold text-white leading-tight mb-6">
-                  See what you&apos;d keep by switching to ImagineThis.
+                  See what you&apos;d keep by switching to Imagine This Auction.
                 </h2>
                 <p className="text-lg text-white/60 mb-8">
-                  A worked example for an auctioneer selling {usd(SAVINGS_EXAMPLE.monthlyHammer)} of hammer a month
-                  across {SAVINGS_EXAMPLE.auctionsPerMonth} auctions. Change the numbers to yours and the gap moves
-                  with them.
+                  A worked example for an auctioneer selling {formatUsd(SAVINGS_EXAMPLE.monthlyHammerCents)} of
+                  hammer a month across {SAVINGS_EXAMPLE.auctionsPerMonth} auctions. Change the numbers to yours
+                  and the gap moves with them.
                 </p>
                 <Button asChild variant="secondary" size="lg" className="bg-white text-slate-900 hover:bg-white/90 shadow-xl rounded-2xl h-14 px-8">
                   <Link href="/signup">
@@ -521,13 +496,14 @@ export default async function Home() {
                   </Link>
                 </Button>
                 <p className="mt-8 text-xs leading-relaxed text-white/40">
-                  Assumptions: {usd(SAVINGS_EXAMPLE.monthlyHammer)} in hammer per month across{' '}
+                  Assumptions: {formatUsd(SAVINGS_EXAMPLE.monthlyHammerCents)} in hammer per month across{' '}
                   {SAVINGS_EXAMPLE.auctionsPerMonth} auctions. HiBid: {SAVINGS_EXAMPLE.hibidCommissionPct}% commission,
-                  AuctionFlex 360 mid software tier at {usd(SAVINGS_EXAMPLE.hibidSoftwareMonthly)} per month,{' '}
-                  {usd(SAVINGS_EXAMPLE.hibidWebcastPerAuction)} webcast setup per auction, and the {formatUsd(HIBID_PRICING.perBidFeeCents)} per unique bid fee
-                  reaching its {usd(SAVINGS_EXAMPLE.hibidBidFeeCap)} per-auction cap in {SAVINGS_EXAMPLE.hibidBidCapAuctions} of
-                  the {SAVINGS_EXAMPLE.auctionsPerMonth} auctions. ImagineThis: {SAVINGS_EXAMPLE.itaCommissionPct}% founding rate
-                  on hammer. Card processing costs apply on both and are excluded. {COMPETITOR_CAPTION}.
+                  AuctionFlex 360 mid software tier at {formatUsd(SAVINGS_EXAMPLE.hibidSoftwareMonthlyCents)} per month,{' '}
+                  {formatUsd(SAVINGS_EXAMPLE.hibidWebcastPerAuctionCents)} webcast setup per auction, and the{' '}
+                  {formatUsd(HIBID_PRICING.perBidFeeCents)} per unique bid fee reaching its{' '}
+                  {formatUsd(SAVINGS_EXAMPLE.hibidBidFeeCapCents)} per-auction cap in {SAVINGS_EXAMPLE.hibidBidCapAuctions} of
+                  the {SAVINGS_EXAMPLE.auctionsPerMonth} auctions. Imagine This Auction: {SAVINGS_EXAMPLE.itaCommissionPct}%
+                  founding rate on hammer. Card processing costs apply on both and are excluded. {COMPETITOR_CAPTION}.
                 </p>
               </div>
 
@@ -536,26 +512,26 @@ export default async function Home() {
                 <div className="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
                   <p className="text-sm font-semibold uppercase tracking-wider text-red-400 mb-3">On HiBid</p>
                   <div className="space-y-2 text-white/70 text-sm tabular-nums">
-                    <div className="flex justify-between"><span>{SAVINGS_EXAMPLE.hibidCommissionPct}% commission on {usd(SAVINGS_EXAMPLE.monthlyHammer)}</span><span>{usd(hibidCommission)}</span></div>
-                    <div className="flex justify-between"><span>Software, mid tier</span><span>{usd(SAVINGS_EXAMPLE.hibidSoftwareMonthly)}</span></div>
-                    <div className="flex justify-between"><span>Webcast setup, {SAVINGS_EXAMPLE.auctionsPerMonth} auctions</span><span>{usd(hibidWebcast)}</span></div>
-                    <div className="flex justify-between"><span>Per-bid fees, cap hit {SAVINGS_EXAMPLE.hibidBidCapAuctions} times</span><span>{usd(hibidBidFees)}</span></div>
+                    <div className="flex justify-between"><span>{SAVINGS_EXAMPLE.hibidCommissionPct}% commission on {formatUsd(SAVINGS_EXAMPLE.monthlyHammerCents)}</span><span>{formatUsd(hibidCommissionCents)}</span></div>
+                    <div className="flex justify-between"><span>Software, mid tier</span><span>{formatUsd(SAVINGS_EXAMPLE.hibidSoftwareMonthlyCents)}</span></div>
+                    <div className="flex justify-between"><span>Webcast setup, {SAVINGS_EXAMPLE.auctionsPerMonth} auctions</span><span>{formatUsd(hibidWebcastCents)}</span></div>
+                    <div className="flex justify-between"><span>Per-bid fees, cap hit {SAVINGS_EXAMPLE.hibidBidCapAuctions} times</span><span>{formatUsd(hibidBidFeesCents)}</span></div>
                     <div className="flex justify-between pt-2 border-t border-white/10 text-white font-bold text-lg">
-                      <span>Total</span><span className="text-red-400">{usd(hibidTotal)}/mo</span>
+                      <span>Total</span><span className="text-red-400">{formatUsd(hibidTotalCents)}/mo</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Our Cost */}
                 <div className="p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-sm">
-                  <p className="text-sm font-semibold uppercase tracking-wider text-emerald-400 mb-3">On ImagineThis</p>
+                  <p className="text-sm font-semibold uppercase tracking-wider text-emerald-400 mb-3">On Imagine This Auction</p>
                   <div className="space-y-2 text-white/70 text-sm tabular-nums">
-                    <div className="flex justify-between"><span>{SAVINGS_EXAMPLE.itaCommissionPct}% founding rate on {usd(SAVINGS_EXAMPLE.monthlyHammer)}</span><span>{usd(itaTotal)}</span></div>
-                    <div className="flex justify-between"><span>Software</span><span className="text-emerald-400">{usd(0)}</span></div>
-                    <div className="flex justify-between"><span>Webcast setup</span><span className="text-emerald-400">{usd(0)}</span></div>
-                    <div className="flex justify-between"><span>Per-bid and listing fees</span><span className="text-emerald-400">{usd(0)}</span></div>
+                    <div className="flex justify-between"><span>{SAVINGS_EXAMPLE.itaCommissionPct}% founding rate on {formatUsd(SAVINGS_EXAMPLE.monthlyHammerCents)}</span><span>{formatUsd(itaTotalCents)}</span></div>
+                    <div className="flex justify-between"><span>Software</span><span className="text-emerald-400">{formatUsd(0)}</span></div>
+                    <div className="flex justify-between"><span>Webcast setup</span><span className="text-emerald-400">{formatUsd(0)}</span></div>
+                    <div className="flex justify-between"><span>Per-bid and listing fees</span><span className="text-emerald-400">{formatUsd(0)}</span></div>
                     <div className="flex justify-between pt-2 border-t border-white/10 text-white font-bold text-lg">
-                      <span>Total</span><span className="text-emerald-400">{usd(itaTotal)}/mo</span>
+                      <span>Total</span><span className="text-emerald-400">{formatUsd(itaTotalCents)}/mo</span>
                     </div>
                   </div>
                 </div>
@@ -563,8 +539,8 @@ export default async function Home() {
                 {/* Savings */}
                 <div className="text-center p-4 rounded-2xl bg-gradient-to-r from-purple-500/20 to-indigo-500/20 border border-purple-500/20">
                   <p className="text-white/60 text-sm">You keep</p>
-                  <p className="text-4xl font-display font-bold text-white tabular-nums">{usd(monthlySavings)}<span className="text-lg text-white/60">/mo</span></p>
-                  <p className="text-purple-300 text-sm font-medium">{usd(yearlySavings)} a year, under the assumptions at left</p>
+                  <p className="text-4xl font-display font-bold text-white tabular-nums">{formatUsd(monthlySavingsCents)}<span className="text-lg text-white/60">/mo</span></p>
+                  <p className="text-purple-300 text-sm font-medium">{formatUsd(yearlySavingsCents)} a year, under the assumptions at left</p>
                 </div>
               </div>
             </div>
@@ -684,15 +660,17 @@ export default async function Home() {
                   Become a Founding Auctioneer
                 </h2>
                 <p className="mt-6 text-lg text-white/70 max-w-xl">
-                  The standard platform fee is 2% of hammer. Founding auctioneers lock in{' '}
-                  <strong className="text-white">1.2% for life</strong>, no matter what new sign-ups pay later.
+                  The standard platform fee is {ITA_PRICING.standardCommissionPct}% of hammer. Founding
+                  auctioneers lock in{' '}
+                  <strong className="text-white">{ITA_PRICING.foundingCommissionPct}% for life</strong>, no matter
+                  what new sign-ups pay later.
                 </p>
                 <ul className="mt-8 space-y-3">
                   {[
-                    '1.2% of hammer, locked for life',
+                    `${ITA_PRICING.foundingCommissionPct}% of hammer, locked for life`,
                     'You keep the buyer’s premium',
                     'Card payments settle on your own PaymentCloud merchant account',
-                    'One statement a month: 1.2% of hammer plus any AI listing tools you used',
+                    `One statement a month: ${ITA_PRICING.foundingCommissionPct}% of hammer plus any AI listing tools you used`,
                   ].map((item) => (
                     <li key={item} className="flex items-center gap-3 text-white/80">
                       <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />

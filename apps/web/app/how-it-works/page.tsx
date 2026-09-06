@@ -24,6 +24,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { computePremiumCents, computeTotalCents, formatUsd } from '@/lib/pricing/premium'
+import { ITA_PRICING } from '@/lib/pricing/competitors'
 
 // Worked example for the "what you pay" card. The math is the same function
 // the lot page and the invoice use, so the example can never drift from it.
@@ -256,7 +257,7 @@ export default function HowItWorksPage() {
                   { num: '03', icon: Landmark, title: 'Connect Your PaymentCloud Merchant Account', desc: 'Winning bidders are charged through your own merchant account, so the money is yours from the moment it settles.' },
                   { num: '04', icon: Camera, title: 'List Your Lots', desc: 'Photograph each item and AI Quick List drafts the title and description for you to approve. Or upload a CSV. Set opening bids, increments, reserves, and your buyer’s premium.' },
                   { num: '05', icon: Gavel, title: 'Sell', desc: 'Run a timed online auction. Proxy bidding, anti-sniping extensions, and bid notifications are built in.' },
-                  { num: '06', icon: Banknote, title: 'Paid Straight to Your Bank', desc: 'Hammer plus the buyer’s premium settles to your bank from PaymentCloud. At month end we send one statement: 1.2% of hammer, plus any AI listing tools you chose to use, billed per use.' },
+                  { num: '06', icon: Banknote, title: 'Paid Straight to Your Bank', desc: `Hammer plus the buyer’s premium settles to your bank from PaymentCloud. At month end we send one statement: ${ITA_PRICING.foundingCommissionPct}% of hammer, plus any AI listing tools you chose to use, billed per use.` },
                 ].map((step) => (
                   <div key={step.num} className="flex gap-5">
                     <div className="flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-500 text-white shadow-lg shadow-purple-500/20">
@@ -290,8 +291,9 @@ export default function HowItWorksPage() {
               <span className="bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent"> before you bid.</span>
             </h2>
             <p className="mt-6 text-lg text-slate-600">
-              Bidders pay the hammer plus the auctioneer&apos;s premium. Auctioneers pay 1.2% of hammer, plus any
-              AI listing tools they choose to use, billed per use on the same monthly statement.
+              Bidders pay the hammer plus the auctioneer&apos;s premium. Auctioneers pay{' '}
+              {ITA_PRICING.foundingCommissionPct}% of hammer, plus any AI listing tools they choose to use,
+              billed per use on the same monthly statement.
             </p>
           </div>
 
@@ -343,12 +345,12 @@ export default function HowItWorksPage() {
                   For Auctioneers
                 </Badge>
                 <div className="flex items-baseline gap-2 mb-2">
-                  <span className="text-5xl font-display font-bold text-slate-900">1.2%</span>
+                  <span className="text-5xl font-display font-bold text-slate-900">{ITA_PRICING.foundingCommissionPct}%</span>
                   <span className="text-slate-600">of hammer</span>
                 </div>
                 <p className="text-slate-600 mb-8">
-                  1.2% of hammer, founding rate locked for life. No monthly, listing, per-bid, or webcast fees.
-                  Processing through your own merchant account.
+                  {ITA_PRICING.foundingCommissionPct}% of hammer, founding rate locked for life. No monthly,
+                  listing, per-bid, or webcast fees. Processing through your own merchant account.
                 </p>
                 <ul className="space-y-4">
                   {[
@@ -357,7 +359,7 @@ export default function HowItWorksPage() {
                     'No per-bid fees',
                     'No webcast fees',
                     'You keep the buyer’s premium',
-                    'One monthly statement: 1.2% of hammer plus any AI listing tools you used',
+                    `One monthly statement: ${ITA_PRICING.foundingCommissionPct}% of hammer plus any AI listing tools you used`,
                   ].map((item) => (
                     <li key={item} className="flex items-center gap-3 text-slate-700">
                       <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
@@ -375,7 +377,8 @@ export default function HowItWorksPage() {
             </div>
           </div>
           <p className="mt-8 text-center text-sm text-slate-500 max-w-2xl mx-auto">
-            The standard platform fee is 2% of hammer. Founding auctioneers keep 1.2% for as long as they sell here.
+            The standard platform fee is {ITA_PRICING.standardCommissionPct}% of hammer. Founding auctioneers keep{' '}
+            {ITA_PRICING.foundingCommissionPct}% for as long as they sell here.
           </p>
         </div>
       </section>
@@ -430,7 +433,8 @@ export default function HowItWorksPage() {
                 Ready to Get Started?
               </h2>
               <p className="text-lg text-white/80 mb-10">
-                Register with a card and start bidding, or apply to sell at the founding 1.2% rate.
+                Register with a card and start bidding, or apply to sell at the founding{' '}
+                {ITA_PRICING.foundingCommissionPct}% rate.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg" variant="secondary" className="bg-white text-purple-700 hover:bg-white/90 shadow-xl h-14 px-8 rounded-2xl text-base">

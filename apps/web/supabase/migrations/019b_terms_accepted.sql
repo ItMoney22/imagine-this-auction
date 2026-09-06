@@ -8,6 +8,12 @@
 -- a BEFORE INSERT trigger copies the timestamp from auth.users onto the new
 -- profile row. Nothing else has to change for the column to be populated.
 --
+-- The metadata key is only ever written when the checkbox was ticked, so its
+-- presence proves acceptance even if the value itself is unreadable. In that
+-- case the trigger falls back to auth.users.created_at (the moment the signup
+-- form was submitted) rather than leaving the column NULL, and it clamps the
+-- result to now() so a fast client clock cannot record a future acceptance.
+--
 -- Idempotent: safe to re-run. Run after 019.
 
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMPTZ;
@@ -23,20 +29,28 @@ SET search_path = ''
 AS $$
 DECLARE
   raw_value TEXT;
+  auth_created_at TIMESTAMPTZ;
+  accepted_at TIMESTAMPTZ;
 BEGIN
   IF NEW.terms_accepted_at IS NULL THEN
-    SELECT u.raw_user_meta_data ->> 'terms_accepted_at'
-      INTO raw_value
+    SELECT u.raw_user_meta_data ->> 'terms_accepted_at', u.created_at
+      INTO raw_value, auth_created_at
       FROM auth.users u
      WHERE u.id = NEW.id;
 
     IF raw_value IS NOT NULL THEN
       BEGIN
-        NEW.terms_accepted_at := raw_value::TIMESTAMPTZ;
-      EXCEPTION WHEN OTHERS THEN
-        -- Malformed metadata must never block profile creation.
-        NEW.terms_accepted_at := NULL;
+        accepted_at := raw_value::TIMESTAMPTZ;
+      EXCEPTION
+        WHEN invalid_datetime_format OR datetime_field_overflow OR invalid_text_representation THEN
+          -- Malformed metadata must never block profile creation. The key is
+          -- present, so the terms were accepted: use the signup moment instead.
+          accepted_at := auth_created_at;
       END;
+
+      -- Acceptance cannot postdate the insert; LEAST also ignores a NULL
+      -- fallback, so the column is still populated in that edge case.
+      NEW.terms_accepted_at := LEAST(accepted_at, now());
     END IF;
   END IF;
 

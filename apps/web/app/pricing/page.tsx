@@ -2,8 +2,10 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowRight, CheckCircle2, DollarSign } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { Badge, badgeVariants } from '@/components/ui/badge'
+import { CompetitorTable } from '@/components/marketing/competitor-table'
 import { COMPETITOR_CAPTION, COMPETITOR_ROWS } from '@/lib/pricing/competitors'
+import { cn } from '@/lib/utils'
 
 export const metadata: Metadata = {
   title: 'Pricing | Imagine This Auction',
@@ -36,6 +38,13 @@ const AUCTIONEER_POINTS = [
   'You set and keep the buyer’s premium',
 ]
 
+/**
+ * Each pricing card's title is a real `<h2>` drawn in the badge style, so the
+ * outline reads Pricing > For Bidders > What you pay when you win, rather than
+ * a decorative badge followed by an orphaned heading.
+ */
+const CARD_TITLE_CLASS = 'mb-6 text-[10px] tracking-[0.2em]'
+
 export default function PricingPage() {
   return (
     <div className="relative overflow-hidden">
@@ -65,9 +74,15 @@ export default function PricingPage() {
           {/* Bidders */}
           <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.06)]">
             <div className="p-8 lg:p-10">
-              <Badge variant="secondary" className="mb-6 bg-indigo-100 text-[10px] tracking-[0.2em] text-indigo-700">
+              <h2
+                className={cn(
+                  badgeVariants({ variant: 'secondary' }),
+                  CARD_TITLE_CLASS,
+                  'bg-indigo-100 text-indigo-700'
+                )}
+              >
                 For Bidders
-              </Badge>
+              </h2>
               <div className="mb-2 flex items-baseline gap-2">
                 <span className="font-display text-5xl font-bold text-slate-900">Free</span>
                 <span className="text-slate-600">to register and bid</span>
@@ -84,9 +99,9 @@ export default function PricingPage() {
                 ))}
               </ul>
 
-              <h2 className="mt-10 text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <h3 className="mt-10 text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
                 What you pay when you win
-              </h2>
+              </h3>
               <dl className="mt-4 divide-y divide-slate-100">
                 {BIDDER_WIN_COSTS.map((cost) => (
                   <div key={cost.label} className="py-3">
@@ -111,9 +126,15 @@ export default function PricingPage() {
               Founding Rate
             </div>
             <div className="p-8 lg:p-10">
-              <Badge variant="secondary" className="mb-6 bg-purple-100 text-[10px] tracking-[0.2em] text-purple-700">
+              <h2
+                className={cn(
+                  badgeVariants({ variant: 'secondary' }),
+                  CARD_TITLE_CLASS,
+                  'bg-purple-100 text-purple-700'
+                )}
+              >
                 For Auctioneers
-              </Badge>
+              </h2>
               <div className="mb-2 flex items-baseline gap-2">
                 <span className="font-display text-5xl font-bold text-slate-900">1.2%</span>
                 <span className="text-slate-600">of hammer</span>
@@ -133,9 +154,9 @@ export default function PricingPage() {
                 ))}
               </ul>
 
-              <h2 className="mt-10 text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <h3 className="mt-10 text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
                 How billing works
-              </h2>
+              </h3>
               <dl className="mt-4 divide-y divide-slate-100">
                 <div className="py-3">
                   <dt className="font-semibold text-slate-900">Billed monthly</dt>
@@ -184,36 +205,8 @@ export default function PricingPage() {
             </p>
           </div>
 
-          <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.06)]">
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <caption className="sr-only">{COMPETITOR_CAPTION}</caption>
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50">
-                  <th scope="col" className="px-6 py-4 font-semibold text-slate-500">
-                    Fee
-                  </th>
-                  <th scope="col" className="px-6 py-4 font-semibold text-purple-700">
-                    Imagine This Auction
-                  </th>
-                  <th scope="col" className="px-6 py-4 font-semibold text-slate-700">
-                    HiBid
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {COMPETITOR_ROWS.map((row) => (
-                  <tr key={row.feature}>
-                    <th scope="row" className="px-6 py-4 font-medium text-slate-900">
-                      {row.feature}
-                    </th>
-                    <td className="px-6 py-4 font-semibold text-slate-900">{row.ita}</td>
-                    <td className="px-6 py-4 text-slate-600">{row.hibid}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="mt-4 px-2 text-xs text-slate-500">{COMPETITOR_CAPTION}</p>
+          {/* Same component as the homepage; the caption is the table's own <caption>. */}
+          <CompetitorTable rows={COMPETITOR_ROWS} caption={COMPETITOR_CAPTION} />
         </div>
       </section>
 
