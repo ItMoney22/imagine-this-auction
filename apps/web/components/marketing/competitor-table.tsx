@@ -2,6 +2,7 @@ import Image from 'next/image'
 import type { ReactNode } from 'react'
 import { CheckCircle2, XCircle } from 'lucide-react'
 import type { CompetitorRow } from '@/lib/pricing/competitors'
+import { COMPETITOR_COLUMNS } from '@/lib/pricing/competitors'
 import { cn } from '@/lib/utils'
 
 interface CompetitorTableProps {
@@ -9,28 +10,33 @@ interface CompetitorTableProps {
   rows: ReadonlyArray<CompetitorRow>
   /** Source and date of the competitor figures; rendered as the table caption. */
   caption: string
-  /** Heading of the competitor column. */
-  competitorLabel?: string
+  /**
+   * Headings of the competitor columns, in the same order as each row's
+   * `competitors` array. Categories, never brand names — see the note at the
+   * top of lib/pricing/competitors.ts.
+   */
+  competitorLabels?: ReadonlyArray<string>
   /** Rendered inside the frame below the table, e.g. a call to action. */
   children?: ReactNode
   className?: string
 }
 
 /**
- * The fee comparison, Imagine This Auction against a competitor, as a real
- * table so screen readers can move by row and column: `<caption>` for the
- * source line, `th scope="col"` for the three column headings, `th
- * scope="row"` for each fee name. The check and cross icons are decorative;
+ * The fee comparison, Imagine This Auction against the two categories we
+ * compete with, as a real table so screen readers can move by row and column:
+ * `<caption>` for the source line, `th scope="col"` for the column headings,
+ * `th scope="row"` for each fee name. The check and cross icons are decorative;
  * the words "Included:" and "Charged:" carry that meaning for assistive
- * technology. Tailwind does the visual grid.
+ * technology. A competitor cell reading "None" is not a charge, so it gets
+ * neither icon rather than a cross that would misread the row.
  *
- * No hooks, so it renders on the server. Used on the homepage; the pricing
- * page can adopt it in place of its own table markup.
+ * No hooks, so it renders on the server. Used on the homepage and the pricing
+ * page.
  */
 export function CompetitorTable({
   rows,
   caption,
-  competitorLabel = 'HiBid',
+  competitorLabels = COMPETITOR_COLUMNS,
   children,
   className,
 }: CompetitorTableProps) {
@@ -42,7 +48,7 @@ export function CompetitorTable({
       )}
     >
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[36rem] border-collapse caption-bottom text-sm">
+        <table className="w-full min-w-[48rem] border-collapse caption-bottom text-sm">
           <caption className="border-t border-slate-100 bg-slate-50 px-6 py-3 text-center text-xs text-slate-500">
             {caption}
           </caption>
@@ -68,9 +74,15 @@ export function CompetitorTable({
                   <span className="text-lg font-bold">Imagine This Auction</span>
                 </span>
               </th>
-              <th scope="col" className="p-6 text-center text-lg font-bold text-white/80">
-                {competitorLabel}
-              </th>
+              {competitorLabels.map((label) => (
+                <th
+                  key={label}
+                  scope="col"
+                  className="p-6 text-center text-base font-bold text-white/80"
+                >
+                  {label}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -86,19 +98,34 @@ export function CompetitorTable({
                   {row.feature}
                 </th>
                 <td className="p-5 text-center">
-                  <span className="inline-flex items-center justify-center gap-2">
-                    <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-emerald-500" aria-hidden="true" />
+                  <span className="inline-flex items-start justify-center gap-2">
+                    <CheckCircle2
+                      className="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-500"
+                      aria-hidden="true"
+                    />
                     <span className="sr-only">Included: </span>
                     <span className="font-bold text-emerald-700">{row.ita}</span>
                   </span>
                 </td>
-                <td className="p-5 text-center">
-                  <span className="inline-flex items-center justify-center gap-2">
-                    <XCircle className="h-5 w-5 flex-shrink-0 text-red-400" aria-hidden="true" />
-                    <span className="sr-only">Charged: </span>
-                    <span className="text-slate-500">{row.hibid}</span>
-                  </span>
-                </td>
+                {row.competitors.map((value, column) => {
+                  const charged = value !== 'None'
+                  return (
+                    <td key={competitorLabels[column] ?? column} className="p-5 text-center">
+                      <span className="inline-flex items-start justify-center gap-2">
+                        {charged && (
+                          <>
+                            <XCircle
+                              className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-400"
+                              aria-hidden="true"
+                            />
+                            <span className="sr-only">Charged: </span>
+                          </>
+                        )}
+                        <span className="text-slate-500">{value}</span>
+                      </span>
+                    </td>
+                  )
+                })}
               </tr>
             ))}
           </tbody>

@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/watchlist-alerts",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/invoice-charges",
+      "schedule": "0 * * * *"
     }
   ]
 }

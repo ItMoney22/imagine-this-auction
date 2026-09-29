@@ -102,6 +102,14 @@ export interface UpsertPaymentMethodInput {
   verifiedAt: string | null
   /** From validateCard: the $1.00 verification auth that could not be voided, if any. */
   unvoidedAuthTransactionId?: string | null
+  /** The IP the bidder saved the card from; replayed as NMI `ipaddress` on later charges. */
+  lastIp?: string | null
+  /**
+   * Gateway transaction id of the verification that stored this card. Sent as
+   * `initial_transaction_id` on every later merchant-initiated charge so the
+   * networks can tie it back to the bidder's agreement.
+   */
+  initialTransactionId?: string | null
 }
 
 /**
@@ -120,6 +128,8 @@ export async function upsertPaymentMethod(admin: Db, input: UpsertPaymentMethodI
     exp_year: input.expYear ?? null,
     verified_at: input.verifiedAt,
     unvoided_auth_transaction_id: input.unvoidedAuthTransactionId ?? null,
+    last_ip: input.lastIp ?? null,
+    initial_transaction_id: input.initialTransactionId ?? null,
   }
 
   const { data, error } = await admin
@@ -171,12 +181,20 @@ export interface SaveCardInput {
   firstName: string
   lastName: string
   email: string
+  /** The bidder's own IP, sent to the gateway and stored for later charges. */
+  ipAddress?: string
 }
 
 /** The gateway and database calls saveCardOnFile makes, injected so the flow is unit-testable. */
 export interface SaveCardDeps {
   /** addCustomerVault: token -> vault record. Throws NmiError when the gateway rejects the token. */
-  addVault: (options: { paymentToken: string; firstName: string; lastName: string; email: string }) => Promise<{
+  addVault: (options: {
+    paymentToken: string
+    firstName: string
+    lastName: string
+    email: string
+    ipAddress?: string
+  }) => Promise<{
     customerVaultId: string
     brand?: string
     last4?: string
@@ -184,9 +202,11 @@ export interface SaveCardDeps {
     expYear?: number
   }>
   /** validateCard: is the vaulted card chargeable? Declines come back as ok: false, not as throws. */
-  validate: (options: { customerVaultId: string; processorId?: string }) => Promise<{
+  validate: (options: { customerVaultId: string; processorId?: string; ipAddress?: string }) => Promise<{
     ok: boolean
     message: string
+    /** The verification's own gateway transaction id; stored as initial_transaction_id. */
+    transactionId?: string
     unvoidedAuthTransactionId?: string
   }>
   /** The bidder's current row, if any. */
@@ -243,6 +263,7 @@ export async function saveCardOnFile(deps: SaveCardDeps, input: SaveCardInput): 
       firstName: input.firstName,
       lastName: input.lastName,
       email: input.email,
+      ipAddress: input.ipAddress,
     })
   } catch (error) {
     if (error instanceof NmiError && error.response) {
@@ -254,7 +275,11 @@ export async function saveCardOnFile(deps: SaveCardDeps, input: SaveCardInput): 
   // 2. Verify the card is chargeable. Nothing is stored unless this passes.
   let verification: Awaited<ReturnType<SaveCardDeps['validate']>>
   try {
-    verification = await deps.validate({ customerVaultId: vault.customerVaultId, processorId: deps.processorId })
+    verification = await deps.validate({
+      customerVaultId: vault.customerVaultId,
+      processorId: deps.processorId,
+      ipAddress: input.ipAddress,
+    })
   } catch {
     await discardVault(vault.customerVaultId)
     return { status: 502, body: { error: VERIFY_UNAVAILABLE_MESSAGE } }
@@ -280,6 +305,8 @@ export async function saveCardOnFile(deps: SaveCardDeps, input: SaveCardInput): 
       verifiedAt: now(),
       unvoidedAuthTransactionId:
         verification.unvoidedAuthTransactionId ?? deps.existing?.unvoidedAuthTransactionId ?? null,
+      lastIp: input.ipAddress ?? null,
+      initialTransactionId: verification.transactionId ?? null,
     })
   } catch {
     await discardVault(vault.customerVaultId)

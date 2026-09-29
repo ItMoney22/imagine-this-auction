@@ -1,6 +1,7 @@
 'use client'
 
 import './community.css'
+import { ConsignmentModeration } from './consignments'
 import { DiscussionModeration, QuestionInbox } from './discussions'
 
 import { useCallback, useEffect, useState } from 'react'
@@ -49,7 +50,7 @@ export function Community({ view = 'feed', handle, slug }: { view?: 'feed' | 'ex
     {state === 'loading' ? <Busy /> : state === 'disabled' ? <section className={panel}><h2 className="text-xl font-semibold">Your collecting community is coming soon</h2><p className="mt-3 text-slate-600">We’re preparing profiles, house updates, and conversations. Explore the auctions while we get ready.</p></section> : state === 'error' ? <Notice error>We couldn’t load Community. <button className="underline" onClick={refresh}>Try again</button></Notice> :
     <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
       <aside className="min-w-0 lg:sticky lg:top-28"><nav aria-label="Community" className="flex gap-2 overflow-x-auto pb-2 lg:flex-col">
-        {[['/feed','Your feed',Users],['/explore','Explore',Compass],['/notifications','Notifications',Bell],['/settings/community','Your profile',Settings],...(me.houses?.length ? [['/org/community','House studio',CalendarClock]] : []),...(me.user?.role === 'admin' ? [['/admin/community','Moderation',ShieldCheck]] : [])].map(([href,label,Icon]) => { const Mark = Icon as typeof Users; return <Link key={String(href)} href={String(href)} className="flex min-h-11 shrink-0 items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-800"><Mark size={19} />{String(label)}</Link> })}
+        {[['/feed','Your feed',Users],['/explore','Explore',Compass],['/consign','Consignments',ImagePlus],['/notifications','Notifications',Bell],['/settings/community','Your profile',Settings],...(me.houses?.length ? [['/org/community','House studio',CalendarClock]] : []),...(me.user?.role === 'admin' ? [['/admin/community','Moderation',ShieldCheck]] : [])].map(([href,label,Icon]) => { const Mark = Icon as typeof Users; return <Link key={String(href)} href={String(href)} className="flex min-h-11 shrink-0 items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-800"><Mark size={19} />{String(label)}</Link> })}
       </nav><div className="mt-6 hidden rounded-2xl bg-indigo-950 p-5 text-white lg:block"><p className="font-serif text-xl">A shared love of the find.</p><p className="mt-3 text-sm leading-relaxed text-indigo-200">Share what caught your eye, learn from fellow collectors, and get to know the houses behind the hammer.</p><Link href="/settings/community" className="mt-5 inline-block text-sm font-semibold text-amber-300">Build your profile →</Link></div></aside>
       <div className="min-w-0 space-y-6">
         {view === 'feed' && <><Composer me={me} onSaved={refresh} /><Feed me={me} revision={revision} /></>}
@@ -58,7 +59,7 @@ export function Community({ view = 'feed', handle, slug }: { view?: 'feed' | 'ex
         {view === 'settings' && <ProfileSettings me={me} refresh={refresh} />}
         {view === 'notifications' && <Notifications me={me} revision={revision} />}
         {view === 'org' && <><HouseStudio me={me} refresh={refresh} revision={revision} />{!!me.houses?.length && <QuestionInbox />}</>}
-        {view === 'admin' && <><Moderation me={me} />{me.user?.role === 'admin' && <DiscussionModeration />}</>}
+        {view === 'admin' && <><Moderation me={me} />{me.user?.role === 'admin' && <><DiscussionModeration /><ConsignmentModeration /></>}</>}
       </div>
     </div>}
   </div>

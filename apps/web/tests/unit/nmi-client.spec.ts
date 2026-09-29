@@ -160,6 +160,7 @@ test.describe('sale', () => {
         taxCents: 100,
         shippingCents: 250,
         ipAddress: '203.0.113.9',
+        initialTransactionId: 'verify_tx_1',
         merchantDefinedFields: ['invoice:inv_1', 'auction:auc_9'],
       },
       { ...CLIENT, fetchImpl }
@@ -184,6 +185,14 @@ test.describe('sale', () => {
     expect(fields.get('ipaddress')).toBe('203.0.113.9')
     expect(fields.get('merchant_defined_field_1')).toBe('invoice:inv_1')
     expect(fields.get('merchant_defined_field_2')).toBe('auction:auc_9')
+
+    // Stored-credential framework: the winning charge lands days after the
+    // auction with nobody at the keyboard, so it is merchant-initiated and has
+    // to point back at the verification the bidder was present for. Unlinked
+    // MITs get downgraded and decline more often.
+    expect(fields.get('initiated_by')).toBe('merchant')
+    expect(fields.get('stored_credential_indicator')).toBe('used')
+    expect(fields.get('initial_transaction_id')).toBe('verify_tx_1')
   })
 
   test('omits processor_id when none is given so the gateway default MID is used', async () => {
@@ -346,6 +355,11 @@ test.describe('validateCard', () => {
     expect(calls[0].fields.get('type')).toBe('validate')
     expect(calls[0].fields.get('customer_vault_id')).toBe('vault_1')
     expect(calls[0].fields.get('processor_id')).toBe('mid_1')
+
+    // This is the cardholder-present half of the stored-credential pair, and
+    // its transaction id is what later charges reference.
+    expect(calls[0].fields.get('initiated_by')).toBe('customer')
+    expect(calls[0].fields.get('stored_credential_indicator')).toBe('stored')
   })
 
   test('falls back to a $1.00 auth immediately voided when validate is unsupported', async () => {

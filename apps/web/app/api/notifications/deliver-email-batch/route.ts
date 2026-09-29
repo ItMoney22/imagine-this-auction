@@ -5,6 +5,8 @@ import { z } from 'zod'
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { notificationEmail } from '@/lib/email/templates'
+import { BRAND_NAME } from '@/lib/email/layout'
 
 // Rewritten 2026-08-12 against the LIVE notifications schema:
 //   notifications(id, user_id, title, message, type, is_read, batch_id,
@@ -20,6 +22,10 @@ const SITE_URL = (
   'https://imaginethisauction.com'
 ).trim()
 
+// Envelope sender. The display name is what the inbox list shows, so it
+// carries the brand rather than the word "noreply".
+const FROM_ADDRESS = `${BRAND_NAME} <${(process.env.FROM_EMAIL || 'noreply@imaginethisauction.com').trim()}>`
+
 const BatchRequestSchema = z.object({
   user_id: z.string().uuid().optional(),
   limit: z.number().min(1).max(100).default(50),
@@ -29,51 +35,6 @@ const BatchRequestSchema = z.object({
 // Only deliver notifications younger than this — avoids blasting a stale
 // backlog if the cron was ever paused.
 const MAX_AGE_HOURS = 72
-
-const CTA_BY_TYPE: Record<string, { label: string; path: string }> = {
-  outbid: { label: 'Bid Again', path: '/dashboard' },
-  watchlist_ending: { label: 'View Your Watchlist', path: '/dashboard' },
-  announcement: { label: 'Open ImagineThisAuction', path: '/' },
-  delivery_offer: { label: 'View Delivery Offers', path: '/driver' },
-  delivery_update: { label: 'Track Your Package', path: '/invoices' },
-}
-
-function buildEmail(notification: { title: string; message: string; type: string | null }) {
-  const cta = CTA_BY_TYPE[notification.type ?? ''] ?? {
-    label: 'Open ImagineThisAuction',
-    path: '/dashboard',
-  }
-  const link = `${SITE_URL}${cta.path}`
-
-  return {
-    subject: notification.title,
-    html: `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f7fafc;">
-  <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 26px 20px; text-align: center;">
-      <h1 style="margin: 0; font-size: 22px; font-weight: bold;">🔨 ImagineThisAuction</h1>
-    </div>
-    <div style="padding: 30px 24px;">
-      <h2 style="margin: 0 0 12px 0; color: #1a202c; font-size: 20px;">${notification.title}</h2>
-      <p style="margin: 0 0 24px 0; color: #4a5568; font-size: 15px;">${notification.message}</p>
-      <div style="text-align: center;">
-        <a href="${link}" style="background: #667eea; color: white; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">${cta.label}</a>
-      </div>
-    </div>
-    <div style="background: #f8f9fa; padding: 18px; text-align: center; color: #6c757d; font-size: 12px;">
-      <p style="margin: 0;">
-        <a href="${SITE_URL}/settings/notifications" style="color: #6c757d;">Manage notification preferences</a>
-      </p>
-    </div>
-  </div>
-</body>
-</html>`,
-    text: `${notification.title}\n\n${notification.message}\n\n${cta.label}: ${link}\n\nManage preferences: ${SITE_URL}/settings/notifications`,
-  }
-}
 
 // Caller must be an admin session or a cron request bearing CRON_SECRET.
 async function isAuthorized(request: NextRequest): Promise<boolean> {
@@ -175,9 +136,9 @@ async function runBatch(opts: { user_id?: string; limit: number; dry_run: boolea
     }
 
     try {
-      const email = buildEmail(notification)
+      const email = notificationEmail(notification)
       const result = await resend.emails.send({
-        from: process.env.FROM_EMAIL || 'noreply@imaginethisauction.com',
+        from: FROM_ADDRESS,
         to: recipient.email,
         subject: email.subject,
         html: email.html,

@@ -426,6 +426,11 @@ export interface Database {
           exp_year: number | null
           verified_at: string | null
           unvoided_auth_transaction_id: string | null
+
+          last_ip: string | null
+
+
+          initial_transaction_id: string | null
           created_at: string
           updated_at: string
         }
@@ -440,6 +445,11 @@ export interface Database {
           exp_year?: number | null
           verified_at?: string | null
           unvoided_auth_transaction_id?: string | null
+
+          last_ip?: string | null
+
+
+          initial_transaction_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -454,6 +464,11 @@ export interface Database {
           exp_year?: number | null
           verified_at?: string | null
           unvoided_auth_transaction_id?: string | null
+
+          last_ip?: string | null
+
+
+          initial_transaction_id?: string | null
           created_at?: string
           updated_at?: string
         }

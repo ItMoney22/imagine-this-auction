@@ -193,6 +193,7 @@ export async function addCustomerVault(
       first_name: options.firstName,
       last_name: options.lastName,
       email: options.email,
+      ipaddress: options.ipAddress,
     },
     client
   )
@@ -263,7 +264,17 @@ function validateResult(ok: boolean, response: NmiResponse): ValidateCardResult 
  */
 export async function validateCard(options: ValidateCardOptions, client?: NmiClientOptions): Promise<ValidateCardResult> {
   const validate = await postTransaction(
-    { type: 'validate', customer_vault_id: options.customerVaultId, processor_id: options.processorId },
+    {
+      type: 'validate',
+      customer_vault_id: options.customerVaultId,
+      processor_id: options.processorId,
+      ipaddress: options.ipAddress,
+      // The cardholder is here, and this is the transaction that stores the
+      // credential. Its transaction id becomes initial_transaction_id on every
+      // later charge.
+      initiated_by: 'customer',
+      stored_credential_indicator: 'stored',
+    },
     client
   )
   if (isApproved(validate)) return validateResult(true, validate)
@@ -275,6 +286,9 @@ export async function validateCard(options: ValidateCardOptions, client?: NmiCli
       amount: '1.00',
       customer_vault_id: options.customerVaultId,
       processor_id: options.processorId,
+      ipaddress: options.ipAddress,
+      initiated_by: 'customer',
+      stored_credential_indicator: 'stored',
       order_description: 'Card verification',
     },
     client
@@ -323,6 +337,10 @@ export async function sale(options: SaleOptions, client?: NmiClientOptions): Pro
     tax: options.taxCents === undefined ? undefined : centsToAmount(options.taxCents),
     shipping: options.shippingCents === undefined ? undefined : centsToAmount(options.shippingCents),
     ipaddress: options.ipAddress,
+    // Merchant-initiated, using credentials the bidder already agreed to store.
+    initiated_by: 'merchant',
+    stored_credential_indicator: 'used',
+    initial_transaction_id: options.initialTransactionId,
   }
   options.merchantDefinedFields?.forEach((value, index) => {
     fields[`merchant_defined_field_${index + 1}`] = value

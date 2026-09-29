@@ -1,5 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { chargeInvoice } from '@/lib/payments/invoice-charge'
+
+/**
+ * Closing an auction raises the winners' invoices and takes the first swing at
+ * every card on file. A charge that declines is not an error here: the invoice
+ * is left `failed` with the attempt recorded, and /api/cron/invoice-charges
+ * takes the one retry before the invoice is handed to the auction house to
+ * collect at pickup.
+ *
+ * Only the first CHARGE_INLINE_LIMIT invoices are charged in the request. The
+ * rest stay `unpaid` with zero attempts, which is exactly what the cron picks
+ * up after UNATTEMPTED_GRACE_MS, so a 300-lot sale cannot run the request out
+ * of time and leave the auction half-closed.
+ */
+const CHARGE_INLINE_LIMIT = 25
+
+export const maxDuration = 300
 
 export async function POST(
   request: NextRequest,
@@ -96,10 +113,27 @@ export async function POST(
       )
     }
 
+    // The auction is closed at this point; nothing below may change that.
+    const invoiceIds: string[] = Array.isArray(result.invoice_ids) ? result.invoice_ids : []
+    const charges: { invoiceId: string; outcome: string }[] = []
+    for (const invoiceId of invoiceIds.slice(0, CHARGE_INLINE_LIMIT)) {
+      try {
+        const charge = await chargeInvoice(invoiceId)
+        charges.push({ invoiceId, outcome: charge.outcome })
+      } catch (error) {
+        // A gateway outage must not fail the close. The invoice keeps whatever
+        // state chargeInvoice left it in and the cron comes back to it.
+        console.error('[auction-close] charge threw', { invoiceId, error })
+        charges.push({ invoiceId, outcome: 'error' })
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Auction closed successfully',
       processed_lots: result.processed_lots,
+      charges,
+      charges_deferred: Math.max(0, invoiceIds.length - charges.length),
     })
 
   } catch (error) {

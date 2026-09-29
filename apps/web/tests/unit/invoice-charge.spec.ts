@@ -4,8 +4,11 @@ import {
   chargeInvoice,
   MAX_CHARGE_ATTEMPTS,
   refundInvoice,
+  notifyUnpaidInvoice,
   refundStatusAfter,
   resolveRefundAmount,
+  RETRY_DELAY_MS,
+  selectExhaustedInvoices,
   selectRetryableInvoices,
   toChargeableInvoice,
   UNATTEMPTED_GRACE_MS,
@@ -67,7 +70,14 @@ interface Notification {
   type: string
 }
 
-function fakeStore(options: { invoices?: ChargeableInvoice[]; vaults?: Record<string, string | null>; admins?: string[] } = {}) {
+function fakeStore(
+  options: {
+    invoices?: ChargeableInvoice[]
+    vaults?: Record<string, string | null>
+    cardIps?: Record<string, string>
+    admins?: string[]
+  } = {}
+) {
   const rows = new Map<string, Row>()
   for (const inv of options.invoices ?? [invoice()]) {
     rows.set(inv.id, { ...inv, isPaid: inv.paymentStatus === 'paid', paidAt: null, failureReason: null, lastAttemptAt: null })
@@ -75,6 +85,7 @@ function fakeStore(options: { invoices?: ChargeableInvoice[]; vaults?: Record<st
   const events: PaymentEventInsert[] = []
   const notifications: Notification[] = []
   const vaults = options.vaults ?? { 'buyer-1': 'vault-9' }
+  const cardIps = options.cardIps ?? { 'buyer-1': '203.0.113.7' }
 
   const store: InvoiceStore = {
     async loadInvoice(id) {
@@ -83,8 +94,9 @@ function fakeStore(options: { invoices?: ChargeableInvoice[]; vaults?: Record<st
       const { isPaid: _isPaid, paidAt: _paidAt, failureReason: _reason, lastAttemptAt: _last, ...rest } = row
       return { ...rest }
     },
-    async loadVerifiedVaultId(userId) {
-      return vaults[userId] ?? null
+    async loadVerifiedCard(userId) {
+      const vaultId = vaults[userId]
+      return vaultId ? { vaultId, lastIp: cardIps[userId] ?? null } : null
     },
     async updateInvoice(id, patch, guard) {
       const row = rows.get(id)
@@ -182,6 +194,9 @@ test.describe('chargeInvoice', () => {
     expect(saleCalls[0]).toEqual({
       customerVaultId: 'vault-9',
       amountCents: 165_000,
+      // The bidder's own IP, not this server's: PaymentCloud's per-IP fraud
+      // threshold would otherwise count every bidder as one address.
+      ipAddress: '203.0.113.7',
       processorId: 'proc_abc',
       orderId: INVOICE_ID,
       orderDescription: 'Fall Estate Sale lot 7',
@@ -690,6 +705,74 @@ test.describe('invoice webhook handlers', () => {
     const result = await handleInvoiceWebhookEvent(webhook('chargeback.opened'), { store, ...clock })
     expect(result).toMatchObject({ action: 'ignored' })
     expect(rows.get(INVOICE_ID)!.paymentStatus).toBe('unpaid')
+    expect(notifications).toHaveLength(0)
+  })
+})
+
+test.describe('the one-retry dunning policy', () => {
+  const t = (offsetMinutes: number) => new Date(NOW.getTime() + offsetMinutes * 60_000).toISOString()
+  const delayMinutes = RETRY_DELAY_MS / 60_000
+
+  test('retries once the wait has passed, even though the bidder changed nothing', () => {
+    const rested = { id: 'rested', buyer_id: 'u1', payment_status: 'failed' as const, attempts: 1, last_attempt_at: t(-delayMinutes), created_at: t(-delayMinutes - 60) }
+    const fresh = { id: 'fresh', buyer_id: 'u2', payment_status: 'failed' as const, attempts: 1, last_attempt_at: t(-delayMinutes + 1), created_at: t(-delayMinutes - 60) }
+    const cards = [
+      { user_id: 'u1', updated_at: t(-delayMinutes - 60), verified_at: t(-delayMinutes - 60) },
+      { user_id: 'u2', updated_at: t(-delayMinutes - 60), verified_at: t(-delayMinutes - 60) },
+    ]
+    // Same card, same decline: only the one that has rested long enough goes again.
+    expect(selectRetryableInvoices([rested, fresh], cards, NOW)).toEqual(['rested'])
+  })
+
+  test('stops after the retry: the cap is one charge plus one retry', () => {
+    expect(MAX_CHARGE_ATTEMPTS).toBe(2)
+    const exhausted = { id: 'done', buyer_id: 'u1', payment_status: 'failed' as const, attempts: MAX_CHARGE_ATTEMPTS, last_attempt_at: t(-delayMinutes * 10), created_at: t(-delayMinutes * 20) }
+    const cards = [{ user_id: 'u1', updated_at: t(-1), verified_at: t(-1) }]
+    // Not even a brand new card restarts it; the invoice belongs to the auction house now.
+    expect(selectRetryableInvoices([exhausted], cards, NOW)).toEqual([])
+    expect(selectExhaustedInvoices([exhausted])).toEqual(['done'])
+  })
+
+  test('an invoice still inside the cap is not handed over', () => {
+    const midway = { id: 'midway', buyer_id: 'u1', payment_status: 'failed' as const, attempts: 1, last_attempt_at: t(-60), created_at: t(-120) }
+    const unpaid = { id: 'unpaid', buyer_id: 'u2', payment_status: 'unpaid' as const, attempts: 0, last_attempt_at: null, created_at: t(-120) }
+    expect(selectExhaustedInvoices([midway, unpaid])).toEqual([])
+  })
+
+  test('hands the invoice to the auction house once, telling both sides what happens at pickup', async () => {
+    const { store, notifications, events } = fakeStore({
+      invoices: [invoice({ paymentStatus: 'failed', attempts: MAX_CHARGE_ATTEMPTS })],
+    })
+
+    expect(await notifyUnpaidInvoice(INVOICE_ID, { store, ...clock })).toEqual({
+      outcome: 'notified',
+      invoiceId: INVOICE_ID,
+    })
+
+    const auctioneerNotice = notifications.find((n) => n.userId === 'auct-user')!
+    expect(auctioneerNotice.type).toBe('invoice_unpaid')
+    expect(auctioneerNotice.message).toContain('$1,650.00')
+    expect(auctioneerNotice.message).toContain('pickup')
+    const buyerNotice = notifications.find((n) => n.userId === 'buyer-1')!
+    expect(buyerNotice.message).toContain('delivery is not available')
+    expect(events).toHaveLength(1)
+
+    // The hourly cron runs again: the auction house is not told twice.
+    expect(await notifyUnpaidInvoice(INVOICE_ID, { store, ...clock })).toEqual({
+      outcome: 'already_notified',
+      invoiceId: INVOICE_ID,
+    })
+    expect(notifications.filter((n) => n.type === 'invoice_unpaid')).toHaveLength(2)
+  })
+
+  test('an invoice that still has an attempt left is never handed over', async () => {
+    const { store, notifications } = fakeStore({
+      invoices: [invoice({ paymentStatus: 'failed', attempts: 1 })],
+    })
+    expect(await notifyUnpaidInvoice(INVOICE_ID, { store, ...clock })).toMatchObject({
+      outcome: 'not_exhausted',
+      attempts: 1,
+    })
     expect(notifications).toHaveLength(0)
   })
 })

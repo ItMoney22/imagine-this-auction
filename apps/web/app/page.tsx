@@ -31,10 +31,11 @@ import type { Database } from '@/lib/types/database'
 import {
   COMPETITOR_CAPTION,
   COMPETITOR_ROWS,
-  HIBID_PRICING,
   ITA_PRICING,
+  SAVINGS_COMPARISONS,
+  SAVINGS_EXAMPLE,
 } from '@/lib/pricing/competitors'
-import { formatUsd, percentOfCents } from '@/lib/pricing/premium'
+import { formatUsd } from '@/lib/pricing/premium'
 import { CompetitorTable } from '@/components/marketing/competitor-table'
 
 type Auction = Database['public']['Tables']['auctions']['Row']
@@ -145,33 +146,13 @@ function LotCard({ lot }: { lot: DisplayLot }) {
 }
 
 /**
- * Worked savings example. Every input is stated in the small print under the
- * calculator; the totals below are derived from these, never typed by hand.
- * All money is integer cents end to end, rounded once per fee the way the
- * premium is, and only formatted at the edge.
+ * The two worked savings examples, one per market we sell into, live in
+ * lib/pricing/competitors.ts alongside the fee table so a rate only ever has to
+ * be changed in one place. Both are stated as categories, never as a named
+ * rival. `auctionSavings` is the timed and webcast comparison; `liveSavings` is
+ * the live-selling one.
  */
-const SAVINGS_EXAMPLE = {
-  monthlyHammerCents: 5_000_000,
-  auctionsPerMonth: 4,
-  hibidCommissionPct: HIBID_PRICING.commissionPct,
-  hibidSoftwareMonthlyCents: HIBID_PRICING.softwareMidCents, // AuctionFlex 360 mid tier
-  hibidWebcastPerAuctionCents: HIBID_PRICING.webcastSetupCents,
-  hibidBidFeeCapCents: HIBID_PRICING.perBidCapCents,
-  hibidBidCapAuctions: 2, // auctions per month assumed to hit the cap
-  itaCommissionPct: ITA_PRICING.foundingCommissionPct,
-} as const
-
-const hibidCommissionCents = percentOfCents(
-  SAVINGS_EXAMPLE.monthlyHammerCents,
-  SAVINGS_EXAMPLE.hibidCommissionPct
-)
-const hibidWebcastCents = SAVINGS_EXAMPLE.auctionsPerMonth * SAVINGS_EXAMPLE.hibidWebcastPerAuctionCents
-const hibidBidFeesCents = SAVINGS_EXAMPLE.hibidBidCapAuctions * SAVINGS_EXAMPLE.hibidBidFeeCapCents
-const hibidTotalCents =
-  hibidCommissionCents + SAVINGS_EXAMPLE.hibidSoftwareMonthlyCents + hibidWebcastCents + hibidBidFeesCents
-const itaTotalCents = percentOfCents(SAVINGS_EXAMPLE.monthlyHammerCents, SAVINGS_EXAMPLE.itaCommissionPct)
-const monthlySavingsCents = hibidTotalCents - itaTotalCents
-const yearlySavingsCents = monthlySavingsCents * 12
+const [auctionSavings, liveSavings] = SAVINGS_COMPARISONS
 
 export default async function Home() {
   const supabase = await createClient()
@@ -345,11 +326,12 @@ export default async function Home() {
               <span className="bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent"> Imagine This Auction</span>
             </h2>
             <p className="mt-6 text-lg text-slate-600">
-              An auctioneer selling {formatUsd(SAVINGS_EXAMPLE.monthlyHammerCents)} a month pays about{' '}
-              <strong className="text-slate-900">{formatUsd(hibidTotalCents)}</strong> in HiBid fees under the
-              assumptions below, and <strong className="text-slate-900">{formatUsd(itaTotalCents)}</strong> here.
-              That is <strong className="text-slate-900">{formatUsd(monthlySavingsCents)}</strong> a month, or{' '}
-              {formatUsd(yearlySavingsCents)} a year.
+              Sell {formatUsd(SAVINGS_EXAMPLE.monthlyHammerCents)} a month and the platform fees run about{' '}
+              <strong className="text-slate-900">{formatUsd(auctionSavings.rivalTotalCents)}</strong> on an auction
+              platform, or <strong className="text-slate-900">{formatUsd(liveSavings.rivalTotalCents)}</strong> in
+              commission on a live shopping app. Here it is{' '}
+              <strong className="text-slate-900">{formatUsd(auctionSavings.itaTotalCents)}</strong>, and the money
+              settles to your own bank. Assumptions are below.
             </p>
           </div>
 
@@ -475,19 +457,18 @@ export default async function Home() {
             <div className="absolute top-0 right-0 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
             <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
 
-            <div className="relative grid lg:grid-cols-2 gap-16 items-center">
-              <div>
+            <div className="relative">
+              <div className="max-w-3xl">
                 <Badge className="mb-6 bg-white/10 text-white border border-white/20 text-[10px] tracking-[0.2em]">
                   <DollarSign className="w-3 h-3 mr-1" />
-                  A Worked Example
+                  Two Worked Examples
                 </Badge>
                 <h2 className="text-3xl sm:text-4xl font-display font-bold text-white leading-tight mb-6">
                   See what you&apos;d keep by switching to Imagine This Auction.
                 </h2>
                 <p className="text-lg text-white/60 mb-8">
-                  A worked example for an auctioneer selling {formatUsd(SAVINGS_EXAMPLE.monthlyHammerCents)} of
-                  hammer a month across {SAVINGS_EXAMPLE.auctionsPerMonth} auctions. Change the numbers to yours
-                  and the gap moves with them.
+                  {formatUsd(SAVINGS_EXAMPLE.monthlyHammerCents)} a month, run two ways: as timed and webcast
+                  auctions, and as live selling. Change the numbers to yours and both gaps move with them.
                 </p>
                 <Button asChild variant="secondary" size="lg" className="bg-white text-slate-900 hover:bg-white/90 shadow-xl rounded-2xl h-14 px-8">
                   <Link href="/signup">
@@ -495,54 +476,69 @@ export default async function Home() {
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Link>
                 </Button>
-                <p className="mt-8 text-xs leading-relaxed text-white/40">
-                  Assumptions: {formatUsd(SAVINGS_EXAMPLE.monthlyHammerCents)} in hammer per month across{' '}
-                  {SAVINGS_EXAMPLE.auctionsPerMonth} auctions. HiBid: {SAVINGS_EXAMPLE.hibidCommissionPct}% commission,
-                  AuctionFlex 360 mid software tier at {formatUsd(SAVINGS_EXAMPLE.hibidSoftwareMonthlyCents)} per month,{' '}
-                  {formatUsd(SAVINGS_EXAMPLE.hibidWebcastPerAuctionCents)} webcast setup per auction, and the{' '}
-                  {formatUsd(HIBID_PRICING.perBidFeeCents)} per unique bid fee reaching its{' '}
-                  {formatUsd(SAVINGS_EXAMPLE.hibidBidFeeCapCents)} per-auction cap in {SAVINGS_EXAMPLE.hibidBidCapAuctions} of
-                  the {SAVINGS_EXAMPLE.auctionsPerMonth} auctions. Imagine This Auction: {SAVINGS_EXAMPLE.itaCommissionPct}%
-                  founding rate on hammer. Card processing costs apply on both and are excluded. {COMPETITOR_CAPTION}.
-                </p>
               </div>
 
-              <div className="space-y-6">
-                {/* Their Cost */}
-                <div className="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
-                  <p className="text-sm font-semibold uppercase tracking-wider text-red-400 mb-3">On HiBid</p>
-                  <div className="space-y-2 text-white/70 text-sm tabular-nums">
-                    <div className="flex justify-between"><span>{SAVINGS_EXAMPLE.hibidCommissionPct}% commission on {formatUsd(SAVINGS_EXAMPLE.monthlyHammerCents)}</span><span>{formatUsd(hibidCommissionCents)}</span></div>
-                    <div className="flex justify-between"><span>Software, mid tier</span><span>{formatUsd(SAVINGS_EXAMPLE.hibidSoftwareMonthlyCents)}</span></div>
-                    <div className="flex justify-between"><span>Webcast setup, {SAVINGS_EXAMPLE.auctionsPerMonth} auctions</span><span>{formatUsd(hibidWebcastCents)}</span></div>
-                    <div className="flex justify-between"><span>Per-bid fees, cap hit {SAVINGS_EXAMPLE.hibidBidCapAuctions} times</span><span>{formatUsd(hibidBidFeesCents)}</span></div>
-                    <div className="flex justify-between pt-2 border-t border-white/10 text-white font-bold text-lg">
-                      <span>Total</span><span className="text-red-400">{formatUsd(hibidTotalCents)}/mo</span>
-                    </div>
-                  </div>
-                </div>
+              <div className="mt-14 grid gap-8 lg:grid-cols-2">
+                {SAVINGS_COMPARISONS.map((comparison) => (
+                  <div key={comparison.key} className="flex flex-col gap-6">
+                    <p className="text-lg font-semibold text-white">{comparison.summary}</p>
 
-                {/* Our Cost */}
-                <div className="p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-sm">
-                  <p className="text-sm font-semibold uppercase tracking-wider text-emerald-400 mb-3">On Imagine This Auction</p>
-                  <div className="space-y-2 text-white/70 text-sm tabular-nums">
-                    <div className="flex justify-between"><span>{SAVINGS_EXAMPLE.itaCommissionPct}% founding rate on {formatUsd(SAVINGS_EXAMPLE.monthlyHammerCents)}</span><span>{formatUsd(itaTotalCents)}</span></div>
-                    <div className="flex justify-between"><span>Software</span><span className="text-emerald-400">{formatUsd(0)}</span></div>
-                    <div className="flex justify-between"><span>Webcast setup</span><span className="text-emerald-400">{formatUsd(0)}</span></div>
-                    <div className="flex justify-between"><span>Per-bid and listing fees</span><span className="text-emerald-400">{formatUsd(0)}</span></div>
-                    <div className="flex justify-between pt-2 border-t border-white/10 text-white font-bold text-lg">
-                      <span>Total</span><span className="text-emerald-400">{formatUsd(itaTotalCents)}/mo</span>
+                    {/* Their cost */}
+                    <div className="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+                      <p className="text-sm font-semibold uppercase tracking-wider text-red-400 mb-3">
+                        {comparison.rivalLabel}
+                      </p>
+                      <div className="space-y-2 text-white/70 text-sm tabular-nums">
+                        {comparison.rivalLines.map((line) => (
+                          <div key={line.label} className="flex justify-between gap-4">
+                            <span>{line.label}</span>
+                            <span className={line.free ? 'text-emerald-400' : undefined}>{formatUsd(line.cents)}</span>
+                          </div>
+                        ))}
+                        <div className="flex justify-between pt-2 border-t border-white/10 text-white font-bold text-lg">
+                          <span>Total</span>
+                          <span className="text-red-400">{formatUsd(comparison.rivalTotalCents)}/mo</span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
 
-                {/* Savings */}
-                <div className="text-center p-4 rounded-2xl bg-gradient-to-r from-purple-500/20 to-indigo-500/20 border border-purple-500/20">
-                  <p className="text-white/60 text-sm">You keep</p>
-                  <p className="text-4xl font-display font-bold text-white tabular-nums">{formatUsd(monthlySavingsCents)}<span className="text-lg text-white/60">/mo</span></p>
-                  <p className="text-purple-300 text-sm font-medium">{formatUsd(yearlySavingsCents)} a year, under the assumptions at left</p>
-                </div>
+                    {/* Our cost */}
+                    <div className="p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-sm">
+                      <p className="text-sm font-semibold uppercase tracking-wider text-emerald-400 mb-3">
+                        On Imagine This Auction
+                      </p>
+                      <div className="space-y-2 text-white/70 text-sm tabular-nums">
+                        {comparison.itaLines.map((line) => (
+                          <div key={line.label} className="flex justify-between gap-4">
+                            <span>{line.label}</span>
+                            <span className={line.free ? 'text-emerald-400' : undefined}>{formatUsd(line.cents)}</span>
+                          </div>
+                        ))}
+                        <div className="flex justify-between pt-2 border-t border-white/10 text-white font-bold text-lg">
+                          <span>Total</span>
+                          <span className="text-emerald-400">{formatUsd(comparison.itaTotalCents)}/mo</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Savings */}
+                    <div className="text-center p-4 rounded-2xl bg-gradient-to-r from-purple-500/20 to-indigo-500/20 border border-purple-500/20">
+                      <p className="text-white/60 text-sm">You keep</p>
+                      <p className="text-4xl font-display font-bold text-white tabular-nums">
+                        {formatUsd(comparison.monthlySavingsCents)}
+                        <span className="text-lg text-white/60">/mo</span>
+                      </p>
+                      <p className="text-purple-300 text-sm font-medium">
+                        {formatUsd(comparison.yearlySavingsCents)} a year, under the assumptions below
+                      </p>
+                    </div>
+
+                    <p className="text-xs leading-relaxed text-white/40">Assumptions: {comparison.note}</p>
+                  </div>
+                ))}
               </div>
+
+              <p className="mt-10 text-xs leading-relaxed text-white/40">{COMPETITOR_CAPTION}.</p>
             </div>
           </div>
         </div>

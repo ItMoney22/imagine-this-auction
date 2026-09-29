@@ -5,6 +5,18 @@ type Table<Row, Required extends keyof Row = never> = { Row: Row; Insert: Pick<R
 type Id = { id: string }
 type Created = { created_at: string }
 export type CommunityTables = {
+  community_conversations: Table<Id & Created & { person_a: string; person_b: string; house_id: string | null; updated_at: string }, 'person_a' | 'person_b'>
+  community_conversation_members: Table<{ conversation_id: string; user_id: string; last_read_at: string }, 'conversation_id' | 'user_id'>
+  community_messages: Table<Id & Created & { conversation_id: string; author_id: string; body: string; moderation_status: string }, 'conversation_id' | 'author_id' | 'body'>
+  community_message_media: Table<{ message_id: string; media_id: string }, 'message_id' | 'media_id'>
+  community_message_reports: Table<Id & Created & { message_id: string; reporter_id: string; reason: string; reviewed: boolean }, 'message_id' | 'reporter_id' | 'reason'>
+  community_consignments: Table<Id & Created & { owner_id: string; title: string; description: string; category: string; city: string; region: string; quantity: number; timeframe: string; visibility: string; radius_miles: number; status: string; moderation_status: string }, 'owner_id' | 'title' | 'description' | 'category' | 'city' | 'region' | 'quantity' | 'timeframe' | 'visibility'>
+  community_consignment_offers: Table<Id & Created & { request_id: string; house_id: string; kind: string; commission_percent: number | null; pickup_offer: boolean; sale_date: string | null; message: string; status: string }, 'request_id' | 'house_id' | 'kind' | 'message'>
+  community_consignment_intakes: Table<Id & Created & { request_id: string; offer_id: string; status: string }, 'request_id' | 'offer_id'>
+  community_consignment_media: Table<{ request_id: string; media_id: string }, 'request_id' | 'media_id'>
+  community_consignment_ratings: Table<Created & { intake_id: string; author_id: string; stars: number; body: string }, 'intake_id' | 'author_id' | 'stars' | 'body'>
+  community_consignment_reports: Table<Id & Created & { request_id: string; reporter_id: string; reason: string; reviewed: boolean }, 'request_id' | 'reporter_id' | 'reason'>
+  community_locations: Table<{ subject_id: string; owner_id: string; latitude: number; longitude: number; updated_at: string }, 'subject_id' | 'owner_id' | 'latitude' | 'longitude'>
   community_questions: Table<Id & Created & { lot_id: string; asker_id: string; body: string; photo_request: boolean; answer: string | null; answered_by: string | null; answered_at: string | null; pinned: boolean; media_id: string | null; moderation_status: string }, 'lot_id' | 'asker_id' | 'body'>
   community_room_messages: Table<Id & Created & { auction_id: string; author_id: string; body: string; moderation_status: string }, 'auction_id' | 'author_id' | 'body'>
   community_room_settings: Table<{ auction_id: string; slow_seconds: number; locked: boolean }, 'auction_id'>

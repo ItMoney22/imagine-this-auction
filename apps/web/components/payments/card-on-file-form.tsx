@@ -72,7 +72,13 @@ declare global {
   }
 }
 
-export const COLLECT_JS_SRC = 'https://secure.nmi.com/token/Collect.js'
+/**
+ * Collect.js has to come from the same gateway instance that issued the
+ * tokenization key. PaymentCloud's NMI tenant is paymentcloud.transactiongateway.com,
+ * so a token minted by secure.nmi.com would not validate against our merchant.
+ */
+export const COLLECT_JS_SRC =
+  process.env.NEXT_PUBLIC_NMI_COLLECT_JS_URL?.trim() || 'https://secure.nmi.com/token/Collect.js'
 
 /** Container ids the hosted fields mount into. Stable so a re-render never detaches an iframe. */
 const FIELD_IDS = { ccnumber: 'cof-ccnumber', ccexp: 'cof-ccexp', cvv: 'cof-cvv' } as const

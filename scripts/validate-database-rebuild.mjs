@@ -41,6 +41,8 @@ if (process.argv.includes('--bundle')) {
         console.log('PASS '+name+' and idempotent replay')
       }
       await db.exec(await fs.readFile('apps/web/supabase/migrations/036_community_questions_chat.sql','utf8'))
+      await db.exec(await fs.readFile('apps/web/supabase/migrations/037_community_consignments.sql','utf8'))
+      await db.exec(await fs.readFile('apps/web/supabase/migrations/038_community_messages.sql','utf8'))
       const { testCommunityDatabase }=await import('./community-database-cases.mjs')
       await testCommunityDatabase(db)
     }

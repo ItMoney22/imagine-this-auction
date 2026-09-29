@@ -167,7 +167,7 @@ export default function PricingPage() {
                 <div className="py-3">
                   <dt className="font-semibold text-slate-900">Your own merchant account</dt>
                   <dd className="mt-0.5 text-sm text-slate-600">
-                    You process card payments through your own PaymentCloud merchant account at your negotiated rate. Buyer payments go to you, not through us.
+                    Winning bidders are charged through a merchant account in your name, set up with you when you join. Sales settle to your bank, not to ours, and the buyer&apos;s premium is yours.
                   </dd>
                 </div>
                 <div className="py-3">
@@ -201,7 +201,7 @@ export default function PricingPage() {
               How we compare
             </h2>
             <p className="mt-4 text-lg text-slate-600">
-              The same auction on Imagine This Auction versus HiBid, fee by fee.
+              The same month of selling here, on an auction platform, and on a live shopping app, fee by fee.
             </p>
           </div>
 

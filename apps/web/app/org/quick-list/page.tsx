@@ -12,11 +12,11 @@ import { VERIFIED_ORIGINALS_LABEL } from '@/lib/ai/quick-listing'
 export const dynamic = 'force-dynamic'
 
 interface Props {
-  searchParams: Promise<{ auction?: string }>
+  searchParams: Promise<{ auction?: string; consignment?: string }>
 }
 
 export default async function QuickListPage({ searchParams }: Props) {
-  const { auction: auctionParam } = await searchParams
+  const { auction: auctionParam, consignment } = await searchParams
   const supabase = await createClient()
 
   const {
@@ -32,6 +32,14 @@ export default async function QuickListPage({ searchParams }: Props) {
     .maybeSingle()
 
   if (!auctioneer) notFound()
+  let initialContext = ''
+  if (consignment && /^[a-f0-9-]{36}$/.test(consignment)) {
+    const { data: accepted } = await supabase.from('community_consignment_offers').select('request_id').eq('request_id',consignment).eq('house_id',auctioneer.id).eq('status','accepted').maybeSingle()
+    if (accepted) {
+      const { data: request } = await supabase.from('community_consignments').select('title,description,quantity').eq('id',consignment).maybeSingle()
+      if (request) initialContext = `Consignment: ${request.title}. Approximate quantity: ${request.quantity}. Seller notes (verify against the item): ${request.description}`.slice(0,800)
+    }
+  }
 
   const [{ data: auctions }, { data: drafts }] = await Promise.all([
     supabase
@@ -112,6 +120,7 @@ export default async function QuickListPage({ searchParams }: Props) {
       </header>
 
       <QuickListWorkspace
+        initialContext={initialContext}
         auctioneerId={auctioneer.id}
         auctions={(auctions ?? []) as Array<{
           id: string

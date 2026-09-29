@@ -18,8 +18,9 @@ export async function GET(req: NextRequest, route: RouteContext) {
     const params = req.nextUrl.searchParams
     if (path[0] === 'status') {
       const db = await createClient()
-      const { data } = await db.from('feature_flags').select('is_enabled').eq('flag_name', 'community_v1').maybeSingle()
-      return noStore({ enabled: data?.is_enabled === true })
+      const { data, error } = await (db as SupabaseClient).rpc('community_enabled')
+      if (error) throw new CommunityError('Community is temporarily unavailable.', 503)
+      return noStore({ enabled: data === true })
     }
     const { db, user } = await context()
     if (path[0] === 'identity-media') {

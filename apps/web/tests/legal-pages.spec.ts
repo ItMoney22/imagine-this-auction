@@ -66,7 +66,7 @@ test.describe('legal and info pages', () => {
     })
   }
 
-  test('/pricing shows the founding rate and the HiBid comparison', async ({ page }) => {
+  test('/pricing shows the founding rate and the fee comparison', async ({ page }) => {
     await page.goto('/pricing')
     await expect(page.getByText('1.2%', { exact: true })).toBeVisible()
     await expect(page.getByRole('table')).toContainText('$0.25 per unique bid')

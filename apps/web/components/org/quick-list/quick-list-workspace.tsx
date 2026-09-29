@@ -65,6 +65,7 @@ interface AuctionOption {
 }
 
 interface QuickListWorkspaceProps {
+  initialContext?: string
   auctioneerId: string
   auctions: AuctionOption[]
   initialDrafts: QueueDraft[]
@@ -85,6 +86,7 @@ export function QuickListWorkspace({
   auctioneerId,
   auctions,
   initialDrafts,
+  initialContext = '',
   defaultAuctionId,
 }: QuickListWorkspaceProps) {
   const router = useRouter()
@@ -92,7 +94,7 @@ export function QuickListWorkspace({
   // --- capture state ---
   const [scanValue, setScanValue] = useState('')
   const [photos, setPhotos] = useState<CapturedPhoto[]>([])
-  const [manualContext, setManualContext] = useState('')
+  const [manualContext, setManualContext] = useState(initialContext)
 
   // --- draft state ---
   const [step, setStep] = useState<Step>('capture')

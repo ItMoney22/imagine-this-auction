@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { adminRpc } from '@/lib/supabase/admin'
 import { moderateText, screenProhibitedItems } from '@/lib/ai/moderation'
@@ -10,8 +11,9 @@ export class CommunityError extends Error {
 }
 export async function context(requireUser = false) {
   const db = await createClient()
-  const { data: flag } = await db.from('feature_flags').select('is_enabled').eq('flag_name', 'community_v1').maybeSingle()
-  if (!flag?.is_enabled) throw new CommunityError('Community is not available yet.', 404)
+  const { data: enabled, error } = await (db as SupabaseClient).rpc('community_enabled')
+  if (error) throw new CommunityError('Community is temporarily unavailable.', 503)
+  if (!enabled) throw new CommunityError('Community is not available yet.', 404)
   const { data: { user } } = await db.auth.getUser()
   if (requireUser && !user) throw new CommunityError('Sign in to join the conversation.', 401)
   return { db, user }

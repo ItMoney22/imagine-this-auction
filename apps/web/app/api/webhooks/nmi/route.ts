@@ -3,9 +3,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createSupabaseNmiEventStore, processNmiWebhook } from '@/lib/payments/nmi-webhook'
 
-// Task 4c: import the module that registers the real handlers here (for
-// example `import '@/lib/payments/invoice-handlers'`). Handlers register on
-// module evaluation, and nothing else imports them on this route.
+// Side-effect import: invoice-handlers registers the sale/refund/void/chargeback
+// handlers on the shared registry when it is evaluated, and nothing else on this
+// route imports it. Without this line every event stores with handled: false.
+import '@/lib/payments/invoice-handlers'
 
 /**
  * POST /api/webhooks/nmi

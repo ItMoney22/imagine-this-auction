@@ -44,12 +44,27 @@ export const CHARGEABLE_STATUSES: readonly InvoicePaymentStatus[] = ['unpaid', '
 /** States a refund may start from. */
 export const REFUNDABLE_STATUSES: readonly InvoicePaymentStatus[] = ['paid', 'partially_refunded']
 
-/** The retry cron gives up after this many attempts. */
-export const MAX_CHARGE_ATTEMPTS = 3
+/**
+ * Attempts before ITA stops trying, HiBid-style (David, 2026-09-12): charge the
+ * card on file when the invoice is raised, retry once, then stop and tell the
+ * auction house the bidder has not paid. They settle it at pickup from the
+ * invoice; the lot is not eligible for delivery until it is paid in full.
+ */
+export const MAX_CHARGE_ATTEMPTS = 2
+
+/**
+ * How long a failed charge rests before the one retry. A decline is usually a
+ * daily limit, a hold, or a card the bidder has to move money onto, so the
+ * retry is worth more the next day than ten minutes later. A bidder who saves a
+ * new card short-circuits the wait.
+ */
+export const RETRY_DELAY_MS = 24 * 60 * 60 * 1000
 
 /** Namespaced `payment_events.provider_event_id` values for events we originate. */
 export const paymentEventIds = {
   sale: (transactionId: string) => `nmi-sale:${transactionId}`,
+  /** One per invoice: the auction house has been told this bidder did not pay. */
+  dunningExhausted: (invoiceId: string) => `ita-unpaid-notice:${invoiceId}`,
   refund: (transactionId: string) => `nmi-refund:${transactionId}`,
   void: (transactionId: string) => `nmi-void:${transactionId}`,
 }
@@ -99,8 +114,8 @@ export interface PaymentEventInsert {
 
 export interface InvoiceStore {
   loadInvoice(invoiceId: string): Promise<ChargeableInvoice | null>
-  /** The bidder's verified Customer Vault id, or null when no verified card is on file. */
-  loadVerifiedVaultId(userId: string): Promise<string | null>
+  /** The bidder's verified card on file, or null when there is none. */
+  loadVerifiedCard(userId: string): Promise<VerifiedCard | null>
   /** Conditional UPDATE. Resolves false when the guard did not match (the row moved on). */
   updateInvoice(invoiceId: string, patch: InvoicePatch, guard: InvoiceUpdateGuard): Promise<boolean>
   /** Insert unless a row with the same provider_event_id exists. */
@@ -108,6 +123,23 @@ export interface InvoiceStore {
   hasPaymentEvent(providerEventId: string): Promise<boolean>
   notify(userId: string, title: string, message: string, type: string): Promise<void>
   listAdminUserIds(): Promise<string[]>
+}
+
+/** What the charge needs about the card on file. */
+export interface VerifiedCard {
+  vaultId: string
+  /**
+   * IP the bidder saved the card from. Sent as the gateway's `ipaddress` so
+   * PaymentCloud's per-IP fraud threshold counts the bidder rather than the
+   * Vercel address every server-side charge would otherwise share.
+   */
+  lastIp: string | null
+  /**
+   * The verification transaction that stored this card. Sent as
+   * `initial_transaction_id` so the winning charge is a properly linked
+   * merchant-initiated transaction rather than an unlinked one.
+   */
+  initialTransactionId: string | null
 }
 
 export interface NmiGateway {
@@ -214,8 +246,8 @@ export async function chargeInvoice(invoiceId: string, deps: InvoiceChargeDeps =
     return { outcome: 'blocked', invoiceId, reason, attempts }
   }
 
-  const vaultId = await store.loadVerifiedVaultId(invoice.buyerId)
-  if (!vaultId) {
+  const card = await store.loadVerifiedCard(invoice.buyerId)
+  if (!card) {
     const reason = 'No verified card on file'
     const attempts = await recordFailure(store, invoice, reason, now(), { statusIn: CHARGEABLE_STATUSES })
     await notifyPaymentFailed(store, invoice, reason)
@@ -237,8 +269,10 @@ export async function chargeInvoice(invoiceId: string, deps: InvoiceChargeDeps =
   let response: NmiResponse
   try {
     response = await nmi.sale({
-      customerVaultId: vaultId,
+      customerVaultId: card.vaultId,
       amountCents: invoice.totalAmount,
+      ipAddress: card.lastIp ?? undefined,
+      initialTransactionId: card.initialTransactionId ?? undefined,
       processorId: auctioneer.gatewayProcessorId,
       orderId: invoice.id,
       orderDescription: `${invoice.auction.title} lot ${invoice.lot.lotNumber}`,
@@ -321,6 +355,78 @@ export async function chargeInvoice(invoiceId: string, deps: InvoiceChargeDeps =
 // ---------------------------------------------------------------------------
 // Refunds
 // ---------------------------------------------------------------------------
+
+export type NotifyUnpaidResult =
+  | { outcome: 'notified'; invoiceId: string }
+  | { outcome: 'already_notified'; invoiceId: string }
+  | { outcome: 'not_exhausted'; invoiceId: string; status: InvoicePaymentStatus; attempts: number }
+  | { outcome: 'not_found'; invoiceId: string }
+
+/**
+ * Hand an unpaid invoice to the auction house.
+ *
+ * Called once an invoice has used every attempt (MAX_CHARGE_ATTEMPTS) and is
+ * still `failed`. ITA stops charging at that point: the auctioneer collects at
+ * pickup from the same invoice, and the lot stays ineligible for delivery until
+ * it is paid in full.
+ *
+ * Exactly-once without a new column: the notice is recorded as a
+ * `payment_events` row under a namespaced id, the same de-duplication the
+ * webhook handlers use. A cron that runs every hour therefore tells the auction
+ * house once, not once an hour.
+ */
+export async function notifyUnpaidInvoice(
+  invoiceId: string,
+  deps: InvoiceChargeDeps = {}
+): Promise<NotifyUnpaidResult> {
+  const { store, now } = resolveDeps(deps)
+
+  const invoice = await store.loadInvoice(invoiceId)
+  if (!invoice) return { outcome: 'not_found', invoiceId }
+  if (invoice.paymentStatus !== 'failed' || invoice.attempts < MAX_CHARGE_ATTEMPTS) {
+    return { outcome: 'not_exhausted', invoiceId, status: invoice.paymentStatus, attempts: invoice.attempts }
+  }
+
+  const eventId = paymentEventIds.dunningExhausted(invoice.id)
+  if (await store.hasPaymentEvent(eventId)) return { outcome: 'already_notified', invoiceId }
+
+  const amount = formatUsd(invoice.totalAmount)
+  await store.notify(
+    invoice.auctioneer.userId,
+    `Unpaid invoice: ${lotLabel(invoice)}`,
+    `The card on file for this winner declined ${MAX_CHARGE_ATTEMPTS} times, so we have stopped trying. ` +
+      `Collect ${amount} from the invoice at pickup. This lot is not eligible for delivery until it is paid in full.`,
+    'invoice_unpaid'
+  )
+  await store.notify(
+    invoice.buyerId,
+    `Payment still owed: ${lotLabel(invoice)}`,
+    `We could not charge your card for ${amount}. The auction house will take payment when you collect the lot, ` +
+      'and delivery is not available until the invoice is paid in full.',
+    'invoice_unpaid'
+  )
+
+  // Written last: a notify that throws must not leave the invoice marked as
+  // handed over, or the auction house would never hear about it.
+  await store.insertPaymentEvent({
+    provider: 'nmi',
+    provider_event_id: eventId,
+    event_type: 'ita.invoice.unpaid_handover',
+    payload: {
+      source: 'invoice-charge',
+      invoice_id: invoice.id,
+      lot_id: invoice.lotId,
+      auctioneer_id: invoice.auctioneer.id,
+      buyer_id: invoice.buyerId,
+      amount_cents: invoice.totalAmount,
+      attempts: invoice.attempts,
+    },
+    processed: true,
+    processed_at: now().toISOString(),
+  })
+
+  return { outcome: 'notified', invoiceId }
+}
 
 export type RefundAmountResolution =
   | { ok: true; amountCents: number; full: boolean }
@@ -520,11 +626,17 @@ export interface CardOnFileTimestamp {
 export const UNATTEMPTED_GRACE_MS = 10 * 60 * 1000
 
 /**
- * Which invoices the daily cron should charge:
- *   - `failed`, fewer than MAX_CHARGE_ATTEMPTS attempts, and the bidder saved a
- *     (verified) card after the last attempt; or
+ * Which invoices the cron should charge:
  *   - `unpaid` with no attempt at all and older than the grace period (the
- *     close request timed out before reaching it).
+ *     close request timed out before reaching it); or
+ *   - `failed` with fewer than MAX_CHARGE_ATTEMPTS attempts, once either
+ *     RETRY_DELAY_MS has passed since the last attempt or the bidder saved a
+ *     (verified) card after it, whichever comes first.
+ *
+ * A bidder with no verified card at all is not selected: there is nothing to
+ * charge, and `chargeInvoice` would only burn the one retry. They come back in
+ * as soon as they save a card.
+ *
  * Pure so the rule is unit-tested.
  */
 export function selectRetryableInvoices(
@@ -548,11 +660,27 @@ export function selectRetryableInvoices(
 
     const card = cardByUser.get(invoice.buyer_id)
     if (!card || !card.verified_at) continue
+
     const lastAttempt = invoice.last_attempt_at ? new Date(invoice.last_attempt_at).getTime() : 0
-    if (new Date(card.updated_at).getTime() > lastAttempt) selected.push(invoice.id)
+    const rested = nowMs - lastAttempt >= RETRY_DELAY_MS
+    const newCard = new Date(card.updated_at).getTime() > lastAttempt
+    if (rested || newCard) selected.push(invoice.id)
   }
 
   return selected
+}
+
+/**
+ * Invoices that have used every attempt and are still unpaid. The auction
+ * house is told about each of these exactly once, and from then on the invoice
+ * is theirs to collect at pickup.
+ *
+ * Pure so the rule is unit-tested.
+ */
+export function selectExhaustedInvoices(invoices: RetryCandidate[]): string[] {
+  return invoices
+    .filter((invoice) => invoice.payment_status === 'failed' && invoice.attempts >= MAX_CHARGE_ATTEMPTS)
+    .map((invoice) => invoice.id)
 }
 
 // ---------------------------------------------------------------------------
@@ -641,15 +769,21 @@ export function createSupabaseInvoiceStore(getClient: () => SupabaseClient): Inv
       return toChargeableInvoice(data as unknown as RawInvoiceRow)
     },
 
-    async loadVerifiedVaultId(userId) {
+    async loadVerifiedCard(userId) {
       const { data, error } = await db()
         .from('bidder_payment_methods')
-        .select('customer_vault_id')
+        .select('customer_vault_id, last_ip, initial_transaction_id')
         .eq('user_id', userId)
         .not('verified_at', 'is', null)
         .maybeSingle()
       if (error) throw failure('load card', error)
-      return (data?.customer_vault_id as string | undefined) ?? null
+      const vaultId = (data?.customer_vault_id as string | undefined) ?? null
+      if (!vaultId) return null
+      return {
+        vaultId,
+        lastIp: (data?.last_ip as string | null | undefined) ?? null,
+        initialTransactionId: (data?.initial_transaction_id as string | null | undefined) ?? null,
+      }
     },
 
     async updateInvoice(invoiceId, patch, guard) {

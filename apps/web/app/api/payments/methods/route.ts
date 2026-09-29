@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { createClient } from '@/lib/supabase/server'
+import { clientIpFromHeaders } from '@/lib/payments/client-ip'
 import { addCustomerVault, deleteCustomerVault, isApproved, validateCard } from '@/lib/payments/nmi'
 import {
   deletePaymentMethod,
@@ -136,7 +137,7 @@ export async function POST(request: NextRequest) {
       // fallback auth never lands on an auctioneer's MID.
       processorId: process.env.NMI_PLATFORM_PROCESSOR_ID?.trim() || undefined,
     },
-    { userId: user.id, paymentToken, firstName, lastName, email }
+    { userId: user.id, paymentToken, firstName, lastName, email, ipAddress: clientIpFromHeaders(request.headers) }
   )
 
   if (result.status !== 200) {

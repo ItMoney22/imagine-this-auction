@@ -4,8 +4,63 @@ const owner='10000000-0000-4000-8000-000000000001', bidder='10000000-0000-4000-8
 const profile={user_id:bidder,handle:'coin_finder',display_name:'QA Collector',bio:'QA sample collector profile.',interests:['coins','vintage'],city:'Providence',region:'RI',visibility:'public',show_location:true,dm_policy:'mutual',reputation_tier:'New',created_at:'2026-09-05T08:00:00Z',updated_at:'2026-09-05T08:00:00Z'}
 const sampleHouse={id:house,owner_id:owner,slug:'sample_house',company_name:'QA Sample Auction House',about:'Sample profile for interface testing.',city:'Providence',region:'RI',categories:['coins'],is_approved:true,service_radius_miles:25,auto_posts:false}
 test('feature remains unavailable until enabled on the database',async({page})=>{
+  await page.route('**/api/community/status',route=>route.fulfill({json:{enabled:false}}))
   await page.goto('/feed')
   await expect(page.getByRole('heading',{name:'Your collecting community is coming soon'})).toBeVisible()
+})
+
+test('live local API creates a profile and publishes a moderated post',async({page})=>{
+  test.skip(!process.env.ITA_QA_USER_ID,'Requires temporary QA account')
+  await page.goto('/login')
+  await page.getByRole('textbox',{name:'Email Address'}).fill(process.env.ITA_QA_EMAIL!)
+  await page.getByRole('textbox',{name:'Password',exact:true}).fill(process.env.ITA_QA_PASSWORD!)
+  await page.getByRole('button',{name:'Sign In',exact:true}).click()
+  await expect(page).not.toHaveURL(/\/login/)
+  await page.waitForLoadState('networkidle')
+  const response=await page.request.post('/api/community/profiles',{data:{handle:'qa_'+process.env.ITA_QA_USER_ID!.slice(0,8),display_name:'Temporary QA Collector',bio:'Temporary automated validation.',interests:['coins'],city:'',region:'',visibility:'public',show_location:false,dm_policy:'mutual'}})
+  expect(response.ok(),await response.text()).toBe(true)
+  const published=await page.request.post('/api/community/posts',{data:{body:'Temporary integration check: sharing a collecting update. This test post will be removed.',visibility:'public',media_ids:[]}})
+  expect(published.ok(),await published.text()).toBe(true)
+  const post=await published.json()
+  expect(post.moderation_status).toBe('approved')
+  const feed=await page.request.get('/api/community/feed?mode=latest')
+  expect(feed.ok(),await feed.text()).toBe(true)
+  expect((await feed.json()).posts.some((p:{id:string})=>p.id===post.id)).toBe(true)
+  const hidden=await page.request.post('/api/community/hide-post',{data:{id:post.id}})
+  expect(hidden.ok(),await hidden.text()).toBe(true)
+})
+
+test('consignor creates a request and accepts a house quote into an intake',async({page})=>{
+  const requestId='90000000-0000-4000-8000-000000000001',offerId='90000000-0000-4000-8000-000000000002'
+  let request:Record<string,unknown>|null=null
+  await page.route('**/api/community/consignments**',async route=>{
+    if(route.request().method()==='POST'){
+      const body=route.request().postDataJSON()
+      if(body.operation==='create')request={...body,id:requestId,owner_id:bidder,status:'open',moderation_status:'approved',media:[],offers:[],intake:null}
+      if(body.operation==='accept')request={...request!,status:'matched',intake:{id:'90000000-0000-4000-8000-000000000003',status:'planned'},offers:[{id:offerId,house_id:house,kind:'quote',commission_percent:15,pickup_offer:true,sale_date:null,message:'We can collect and catalog the collection.',status:'accepted',house:{company_name:'QA Sample Auction House'}}]}
+      return route.fulfill({json:{id:requestId,moderation_status:'approved'}})
+    }
+    return route.fulfill({json:{requests:request?[request]:[],houses:[],userId:bidder}})
+  })
+  await page.goto('/consign')
+  await page.getByText('Share an item or estate',{exact:true}).click()
+  await page.getByLabel('What are you selling?').fill('QA coin collection')
+  await page.getByLabel('Description',{exact:true}).fill('A sample collection of twelve coins for interface testing.')
+  await page.getByLabel('Category',{exact:true}).fill('coins')
+  await page.getByLabel('Approximate item count').fill('12')
+  await page.getByLabel('City',{exact:true}).fill('Providence')
+  await page.getByLabel('State / region').fill('RI')
+  await page.getByLabel('Preferred timeframe').fill('Within two months')
+  await page.getByRole('button',{name:'Share consignment request'}).click()
+  await expect(page.getByText('Your request is ready for eligible houses to view.')).toBeVisible()
+  request={...request!,offers:[{id:offerId,house_id:house,kind:'quote',commission_percent:15,pickup_offer:true,sale_date:null,message:'We can collect and catalog the collection.',status:'pending',house:{company_name:'QA Sample Auction House'}}]}
+  await page.getByRole('link',{name:'View request & responses'}).click()
+  await page.getByRole('button',{name:'Accept offer & create intake'}).click()
+  await expect(page.getByRole('heading',{name:'Consignment intake',exact:true})).toBeVisible()
+  await expect(page.getByText('Status: planned',{exact:true})).toBeVisible()
+  await page.evaluate(()=>window.scrollTo(0,0))
+  await page.screenshot({path:'../../docs/qa/community/consignment-mobile.png',fullPage:true})
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true)
 })
 test('mobile composer, feed, reactions, follow and profile settings',async({page})=>{
   test.skip(!process.env.ITA_QA_EMAIL || !process.env.ITA_QA_PASSWORD, 'Requires the temporary QA account created by scripts/smoke-new-database.cjs')
@@ -14,6 +69,7 @@ test('mobile composer, feed, reactions, follow and profile settings',async({page
   await page.getByRole('textbox',{name:'Password',exact:true}).fill(process.env.ITA_QA_PASSWORD!)
   await page.getByRole('button',{name:'Sign In',exact:true}).click()
   await expect(page).not.toHaveURL(/\/login/)
+  await page.waitForLoadState('networkidle')
   const posts=[{id:'30000000-0000-4000-8000-000000000001',author_id:owner,house_id:house,body:'QA sample: a collection of coins with a story to tell. What do you collect?',published_at:'2026-09-05T09:00:00Z',scheduled_at:null,moderation_status:'approved',visibility:'public',lot_id:null,auction_id:null,house:sampleHouse,profile:{display_name:'QA House Owner',handle:'house_owner'},comments:[],reactions:[],media:[]}]
   let following=false
   await page.route('**/api/community/**',async route=>{

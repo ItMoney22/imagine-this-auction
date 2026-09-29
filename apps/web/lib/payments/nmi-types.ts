@@ -49,6 +49,8 @@ export interface AddCustomerVaultOptions {
   firstName: string
   lastName: string
   email: string
+  /** The bidder's own IP, so per-IP fraud thresholds count them and not our server. */
+  ipAddress?: string
 }
 
 export interface AddCustomerVaultResult {
@@ -63,6 +65,8 @@ export interface AddCustomerVaultResult {
 export interface ValidateCardOptions {
   customerVaultId: string
   processorId?: string
+  /** The bidder's own IP, so per-IP fraud thresholds count them and not our server. */
+  ipAddress?: string
 }
 
 export interface ValidateCardResult {
@@ -89,6 +93,15 @@ export interface SaleOptions {
   taxCents?: number
   shippingCents?: number
   ipAddress?: string
+  /**
+   * Stored-credential framework (CIT/MIT). The gateway transaction id of the
+   * cardholder-present verification that stored this card. A winning charge
+   * happens days after the auction with nobody at the keyboard, so it is a
+   * merchant-initiated transaction and the networks want it linked back to the
+   * transaction where the cardholder agreed. Unlinked MITs get downgraded and
+   * declined more often, which is exactly the failure this flow cannot afford.
+   */
+  initialTransactionId?: string
   /** Sent as merchant_defined_field_1..N in order. */
   merchantDefinedFields?: string[]
 }
